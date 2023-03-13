@@ -115,6 +115,86 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 	return functions, nil
 }
 
+// GetFunction gives a richer payload than GetFunctions, but for a specific function
+func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, error) {
+	u := s.GatewayURL
+
+	u.Path = "/system/function/" + name
+
+	if len(namespace) > 0 {
+		query := u.Query()
+		query.Set("namespace", namespace)
+		u.RawQuery = query.Encode()
+	}
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return types.FunctionDeployment{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
+	}
+
+	if s.Credentials != nil {
+		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	}
+
+	res, err := s.Client.Do(req)
+	if err != nil {
+		return types.FunctionDeployment{}, fmt.Errorf("unable to make HTTP request: %w", err)
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	functions := types.FunctionDeployment{}
+	if err := json.Unmarshal(body, &functions); err != nil {
+		return types.FunctionDeployment{},
+			fmt.Errorf("unable to unmarshal value: %q, error: %w", string(body), err)
+	}
+
+	return functions, nil
+}
+
+func (s *Client) Deploy(spec types.FunctionDeployment) (int, error) {
+
+	bodyBytes, err := json.Marshal(spec)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	u := s.GatewayURL
+	u.Path = "/system/functions"
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), bodyReader)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	if s.Credentials != nil {
+		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	}
+
+	res, err := s.Client.Do(req)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	var body []byte
+	if res.Body != nil {
+		defer res.Body.Close()
+		body, _ = ioutil.ReadAll(res.Body)
+	}
+
+	if res.StatusCode != http.StatusAccepted {
+		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %s", res.StatusCode, string(body))
+	}
+
+	return res.StatusCode, nil
+}
+
 // ScaleFunction scales a function to a number of replicas
 func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace string, replicas uint64) error {
 
