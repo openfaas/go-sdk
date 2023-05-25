@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -54,7 +54,7 @@ func (s *Client) GetNamespaces() ([]string, error) {
 		defer res.Body.Close()
 	}
 
-	bytesOut, err := ioutil.ReadAll(res.Body)
+	bytesOut, err := io.ReadAll(res.Body)
 	if err != nil {
 		return namespaces, err
 	}
@@ -104,7 +104,7 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 		defer res.Body.Close()
 	}
 
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := io.ReadAll(res.Body)
 
 	functions := []types.FunctionStatus{}
 	if err := json.Unmarshal(body, &functions); err != nil {
@@ -113,6 +113,40 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 	}
 
 	return functions, nil
+}
+
+func (s *Client) GetInfo() (SystemInfo, error) {
+	u := s.GatewayURL
+
+	u.Path = "/system/info"
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return SystemInfo{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
+	}
+
+	if s.Credentials != nil {
+		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	}
+
+	res, err := s.Client.Do(req)
+	if err != nil {
+		return SystemInfo{}, fmt.Errorf("unable to make HTTP request: %w", err)
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, _ := io.ReadAll(res.Body)
+
+	info := SystemInfo{}
+	if err := json.Unmarshal(body, &info); err != nil {
+		return SystemInfo{},
+			fmt.Errorf("unable to unmarshal value: %q, error: %w", string(body), err)
+	}
+
+	return info, nil
 }
 
 // GetFunction gives a richer payload than GetFunctions, but for a specific function
@@ -145,7 +179,7 @@ func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, 
 		defer res.Body.Close()
 	}
 
-	body, _ := ioutil.ReadAll(res.Body)
+	body, _ := io.ReadAll(res.Body)
 
 	functions := types.FunctionDeployment{}
 	if err := json.Unmarshal(body, &functions); err != nil {
@@ -157,6 +191,15 @@ func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, 
 }
 
 func (s *Client) Deploy(spec types.FunctionDeployment) (int, error) {
+	return s.deploy(http.MethodPost, spec)
+
+}
+
+func (s *Client) Update(spec types.FunctionDeployment) (int, error) {
+	return s.deploy(http.MethodPut, spec)
+}
+
+func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, error) {
 
 	bodyBytes, err := json.Marshal(spec)
 	if err != nil {
@@ -168,7 +211,7 @@ func (s *Client) Deploy(spec types.FunctionDeployment) (int, error) {
 	u := s.GatewayURL
 	u.Path = "/system/functions"
 
-	req, err := http.NewRequest(http.MethodPost, u.String(), bodyReader)
+	req, err := http.NewRequest(method, u.String(), bodyReader)
 	if err != nil {
 		return http.StatusBadGateway, err
 	}
@@ -185,7 +228,7 @@ func (s *Client) Deploy(spec types.FunctionDeployment) (int, error) {
 	var body []byte
 	if res.Body != nil {
 		defer res.Body.Close()
-		body, _ = ioutil.ReadAll(res.Body)
+		body, _ = io.ReadAll(res.Body)
 	}
 
 	if res.StatusCode != http.StatusAccepted {
@@ -249,7 +292,7 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 
 	default:
 		var err error
-		bytesOut, err := ioutil.ReadAll(res.Body)
+		bytesOut, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
