@@ -10,23 +10,28 @@ import (
 	"net/url"
 	"path/filepath"
 
-	"github.com/openfaas/faas-provider/auth"
 	"github.com/openfaas/faas-provider/types"
 )
 
 // Client is used to manage OpenFaaS functions
 type Client struct {
-	GatewayURL  *url.URL
-	Client      *http.Client
-	Credentials *auth.BasicAuthCredentials
+	GatewayURL *url.URL
+	Client     *http.Client
+	ClientAuth ClientAuth
+}
+
+// ClientAuth an interface for client authentication.
+// to add authentication to the client implement this interface
+type ClientAuth interface {
+	Set(req *http.Request) error
 }
 
 // NewClient creates an Client for managing OpenFaaS
-func NewClient(gatewayURL *url.URL, credentials *auth.BasicAuthCredentials, client *http.Client) *Client {
+func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Client {
 	return &Client{
-		GatewayURL:  gatewayURL,
-		Client:      http.DefaultClient,
-		Credentials: credentials,
+		GatewayURL: gatewayURL,
+		Client:     http.DefaultClient,
+		ClientAuth: auth,
 	}
 }
 
@@ -41,8 +46,10 @@ func (s *Client) GetNamespaces() ([]string, error) {
 		return namespaces, fmt.Errorf("unable to create request: %s, error: %w", u.String(), err)
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return namespaces, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 
 	res, err := s.Client.Do(req)
@@ -91,8 +98,10 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 		return []types.FunctionStatus{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return []types.FunctionStatus{}, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 
 	res, err := s.Client.Do(req)
@@ -125,8 +134,10 @@ func (s *Client) GetInfo() (SystemInfo, error) {
 		return SystemInfo{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return SystemInfo{}, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 
 	res, err := s.Client.Do(req)
@@ -166,8 +177,10 @@ func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, 
 		return types.FunctionDeployment{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return types.FunctionDeployment{}, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 
 	res, err := s.Client.Do(req)
@@ -216,8 +229,10 @@ func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, erro
 		return http.StatusBadGateway, err
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 
 	res, err := s.Client.Do(req)
@@ -267,8 +282,10 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
 	}
 
-	if s.Credentials != nil {
-		req.SetBasicAuth(s.Credentials.User, s.Credentials.Password)
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return fmt.Errorf("unable to set Authorization header: %w", err)
+		}
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
