@@ -259,6 +259,7 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 	scaleReq := types.ScaleServiceRequest{
 		ServiceName: functionName,
 		Replicas:    replicas,
+		Namespace:   namespace,
 	}
 
 	var err error
@@ -269,11 +270,6 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 	u := s.GatewayURL
 
 	functionPath := filepath.Join("/system/scale-function", functionName)
-	if len(namespace) > 0 {
-		query := u.Query()
-		query.Set("namespace", namespace)
-		u.RawQuery = query.Encode()
-	}
 
 	u.Path = functionPath
 
