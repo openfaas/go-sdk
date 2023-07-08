@@ -1,10 +1,14 @@
 package sdk
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/openfaas/faas-provider/types"
 )
 
 func TestSdk_GetNamespaces_TwoNamespaces(t *testing.T) {
@@ -68,5 +72,134 @@ func TestSdk_GetNamespaces_NoNamespaces(t *testing.T) {
 	}
 	if gotNS != len(wantNS) {
 		t.Fatalf("want %d namespaces, got: %d", len(wantNS), gotNS)
+	}
+}
+
+func TestSdk_DeployFunction(t *testing.T) {
+	funcName := "funct1"
+	nsName := "ns1"
+	tests := []struct {
+		name         string
+		functionName string
+		namespace    string
+		err          error
+		handler      func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:         "function deployed",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name:         "function will bedeployed",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusAccepted)
+			},
+		},
+		{
+			name:         "client not authorized",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name:         "unknown error",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, "unknown error", http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, "unknown error\n"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.Deploy(types.FunctionDeployment{
+				Service:   funcName,
+				Image:     fmt.Sprintf("docker.io/openfaas/%s:latest", funcName),
+				Namespace: nsName,
+			})
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_DeleteFunction(t *testing.T) {
+	funcName := "funct1"
+	nsName := "ns1"
+	tests := []struct {
+		name         string
+		functionName string
+		namespace    string
+		err          error
+		handler      func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:         "function deleted",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusAccepted)
+			},
+		},
+		{
+			name:         "function not found",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: fmt.Errorf("function %s not found", funcName),
+		},
+		{
+			name:         "client not authorized",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name:         "unknown error",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, "unknown error", http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			err := client.DeleteFunction(test.functionName, test.namespace)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
 	}
 }
