@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -246,15 +245,20 @@ func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, erro
 		body, _ = io.ReadAll(res.Body)
 	}
 
-	if res.StatusCode != http.StatusAccepted {
-		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %s", res.StatusCode, string(body))
-	}
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
+		return res.StatusCode, nil
 
-	return res.StatusCode, nil
+	case http.StatusUnauthorized:
+		return res.StatusCode, fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(body))
+	}
 }
 
 // ScaleFunction scales a function to a number of replicas
-func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace string, replicas uint64) error {
+func (s *Client) ScaleFunction(functionName, namespace string, replicas uint64) error {
 
 	scaleReq := types.ScaleServiceRequest{
 		ServiceName: functionName,
@@ -274,6 +278,64 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 	u.Path = functionPath
 
 	req, err := http.NewRequest(http.MethodPost, u.String(), bodyReader)
+	if err != nil {
+		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
+	}
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
+
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
+		break
+
+	case http.StatusNotFound:
+		return fmt.Errorf("function %s not found", functionName)
+
+	case http.StatusUnauthorized:
+		return fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		var err error
+		bytesOut, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut))
+	}
+	return nil
+}
+
+// DeleteFunction deletes a function
+func (s *Client) DeleteFunction(functionName, namespace string) error {
+
+	delReq := types.DeleteFunctionRequest{
+		FunctionName: functionName,
+		Namespace:    namespace,
+	}
+
+	var err error
+
+	bodyBytes, _ := json.Marshal(delReq)
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	u := s.GatewayURL
+	u.Path = "/system/functions"
+
+	req, err := http.NewRequest(http.MethodDelete, u.String(), bodyReader)
 	if err != nil {
 		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
 	}
