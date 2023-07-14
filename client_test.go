@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,7 +21,7 @@ func TestSdk_GetNamespaces_TwoNamespaces(t *testing.T) {
 	sU, _ := url.Parse(s.URL)
 
 	client := NewClient(sU, nil, http.DefaultClient)
-	ns, err := client.GetNamespaces()
+	ns, err := client.GetNamespaces(context.Background())
 	if err != nil {
 		t.Fatalf("wanted no error, but got: %s", err)
 	}
@@ -52,7 +53,7 @@ func TestSdk_GetNamespaces_NoNamespaces(t *testing.T) {
 	sU, _ := url.Parse(s.URL)
 
 	client := NewClient(sU, nil, http.DefaultClient)
-	ns, err := client.GetNamespaces()
+	ns, err := client.GetNamespaces(context.Background())
 	if err != nil {
 		t.Fatalf("wanted no error, but got: %s", err)
 	}
@@ -128,7 +129,8 @@ func TestSdk_DeployFunction(t *testing.T) {
 			sU, _ := url.Parse(s.URL)
 
 			client := NewClient(sU, nil, http.DefaultClient)
-			_, err := client.Deploy(types.FunctionDeployment{
+
+			_, err := client.Deploy(context.Background(), types.FunctionDeployment{
 				Service:   funcName,
 				Image:     fmt.Sprintf("docker.io/openfaas/%s:latest", funcName),
 				Namespace: nsName,
@@ -195,7 +197,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			sU, _ := url.Parse(s.URL)
 
 			client := NewClient(sU, nil, http.DefaultClient)
-			err := client.DeleteFunction(test.functionName, test.namespace)
+			err := client.DeleteFunction(context.Background(), test.functionName, test.namespace)
 
 			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)

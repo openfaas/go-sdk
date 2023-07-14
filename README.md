@@ -28,7 +28,7 @@ auth := &sdk.BasicAuth{
 
 client := sdk.NewClient(gatewayURL, auth, http.DefaultClient)
 
-namespace, err := client.GetNamespaces()
+namespace, err := client.GetNamespaces(context.Background())
 ```
 
 ### Authentication with IAM
