@@ -1,7 +1,10 @@
 package sdk
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path"
 	"sync"
 )
 
@@ -59,4 +62,34 @@ func (a *TokenAuth) Set(req *http.Request) error {
 
 	req.Header.Add("Authorization", "Bearer "+a.token.IDToken)
 	return nil
+}
+
+// A TokenSource to get ID token by reading a Kubernetes projected service account token
+// from /var/secrets/tokens/openfaas-token or the path set by the token_mount_path environment
+// variable.
+type ServiceAccountTokenSource struct{}
+
+// Token returns a Kubernetes projected service account token read from
+// /var/secrets/tokens/openfaas-token or the path set by the token_mount_path
+// environment variable.
+func (ts *ServiceAccountTokenSource) Token() (string, error) {
+	tokenMountPath := getEnv("token_mount_path", "/var/secrets/tokens")
+	if len(tokenMountPath) == 0 {
+		return "", fmt.Errorf("invalid token_mount_path specified for reading the service account token")
+	}
+
+	idTokenPath := path.Join(tokenMountPath, "openfaas-token")
+	idToken, err := os.ReadFile(idTokenPath)
+	if err != nil {
+		return "", fmt.Errorf("unable to load service account token: %s", err)
+	}
+
+	return string(idToken), nil
+}
+
+func getEnv(key, defaultVal string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return defaultVal
 }
