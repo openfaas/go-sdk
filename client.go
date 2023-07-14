@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,12 +36,12 @@ func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Clien
 }
 
 // GetNamespaces get openfaas namespaces
-func (s *Client) GetNamespaces() ([]string, error) {
+func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
 	u := s.GatewayURL
 	namespaces := []string{}
 	u.Path = "/system/namespaces"
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return namespaces, fmt.Errorf("unable to create request: %s, error: %w", u.String(), err)
 	}
@@ -81,7 +82,7 @@ func (s *Client) GetNamespaces() ([]string, error) {
 }
 
 // GetFunctions lists all functions
-func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) {
+func (s *Client) GetFunctions(ctx context.Context, namespace string) ([]types.FunctionStatus, error) {
 	u := s.GatewayURL
 
 	u.Path = "/system/functions"
@@ -92,7 +93,7 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 		u.RawQuery = query.Encode()
 	}
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return []types.FunctionStatus{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
@@ -123,12 +124,12 @@ func (s *Client) GetFunctions(namespace string) ([]types.FunctionStatus, error) 
 	return functions, nil
 }
 
-func (s *Client) GetInfo() (SystemInfo, error) {
+func (s *Client) GetInfo(ctx context.Context) (SystemInfo, error) {
 	u := s.GatewayURL
 
 	u.Path = "/system/info"
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return SystemInfo{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
@@ -160,7 +161,7 @@ func (s *Client) GetInfo() (SystemInfo, error) {
 }
 
 // GetFunction gives a richer payload than GetFunctions, but for a specific function
-func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, error) {
+func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types.FunctionDeployment, error) {
 	u := s.GatewayURL
 
 	u.Path = "/system/function/" + name
@@ -171,7 +172,7 @@ func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, 
 		u.RawQuery = query.Encode()
 	}
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return types.FunctionDeployment{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
@@ -202,16 +203,16 @@ func (s *Client) GetFunction(name, namespace string) (types.FunctionDeployment, 
 	return functions, nil
 }
 
-func (s *Client) Deploy(spec types.FunctionDeployment) (int, error) {
-	return s.deploy(http.MethodPost, spec)
+func (s *Client) Deploy(ctx context.Context, spec types.FunctionDeployment) (int, error) {
+	return s.deploy(ctx, http.MethodPost, spec)
 
 }
 
-func (s *Client) Update(spec types.FunctionDeployment) (int, error) {
-	return s.deploy(http.MethodPut, spec)
+func (s *Client) Update(ctx context.Context, spec types.FunctionDeployment) (int, error) {
+	return s.deploy(ctx, http.MethodPut, spec)
 }
 
-func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, error) {
+func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionDeployment) (int, error) {
 
 	bodyBytes, err := json.Marshal(spec)
 	if err != nil {
@@ -223,7 +224,7 @@ func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, erro
 	u := s.GatewayURL
 	u.Path = "/system/functions"
 
-	req, err := http.NewRequest(method, u.String(), bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
 	if err != nil {
 		return http.StatusBadGateway, err
 	}
@@ -258,7 +259,7 @@ func (s *Client) deploy(method string, spec types.FunctionDeployment) (int, erro
 }
 
 // ScaleFunction scales a function to a number of replicas
-func (s *Client) ScaleFunction(functionName, namespace string, replicas uint64) error {
+func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace string, replicas uint64) error {
 
 	scaleReq := types.ScaleServiceRequest{
 		ServiceName: functionName,
@@ -277,7 +278,7 @@ func (s *Client) ScaleFunction(functionName, namespace string, replicas uint64) 
 
 	u.Path = functionPath
 
-	req, err := http.NewRequest(http.MethodPost, u.String(), bodyReader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
 	if err != nil {
 		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
 	}
@@ -320,7 +321,7 @@ func (s *Client) ScaleFunction(functionName, namespace string, replicas uint64) 
 }
 
 // DeleteFunction deletes a function
-func (s *Client) DeleteFunction(functionName, namespace string) error {
+func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace string) error {
 
 	delReq := types.DeleteFunctionRequest{
 		FunctionName: functionName,
@@ -335,7 +336,7 @@ func (s *Client) DeleteFunction(functionName, namespace string) error {
 	u := s.GatewayURL
 	u.Path = "/system/functions"
 
-	req, err := http.NewRequest(http.MethodDelete, u.String(), bodyReader)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
 	if err != nil {
 		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
 	}
