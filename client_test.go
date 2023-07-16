@@ -109,7 +109,7 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), http.StatusUnauthorized),
 		},
 		{
 			name:         "unknown error",
@@ -118,7 +118,7 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, "unknown error\n"),
+			err: createHttpError(fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, "unknown error\n"), http.StatusInternalServerError),
 		},
 	}
 
@@ -130,7 +130,8 @@ func TestSdk_DeployFunction(t *testing.T) {
 
 			client := NewClient(sU, nil, http.DefaultClient)
 
-			_, err := client.Deploy(context.Background(), types.FunctionDeployment{
+			// _, err := client.Deploy(context.Background(), types.FunctionDeployment{
+			err := client.Deploy(context.Background(), types.FunctionDeployment{
 				Service:   funcName,
 				Image:     fmt.Sprintf("docker.io/openfaas/%s:latest", funcName),
 				Namespace: nsName,
@@ -168,7 +169,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("function %s not found", funcName),
+			err: createHttpError(fmt.Errorf("function %s not found", funcName), http.StatusNotFound),
 		},
 		{
 			name:         "client not authorized",
@@ -177,7 +178,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), http.StatusUnauthorized),
 		},
 		{
 			name:         "unknown error",
@@ -186,7 +187,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")), http.StatusUnauthorized),
 		},
 	}
 
@@ -198,6 +199,74 @@ func TestSdk_DeleteFunction(t *testing.T) {
 
 			client := NewClient(sU, nil, http.DefaultClient)
 			err := client.DeleteFunction(context.Background(), test.functionName, test.namespace)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_ScaleFunction(t *testing.T) {
+	funcName := "funct1"
+	nsName := "ns1"
+	tests := []struct {
+		name         string
+		functionName string
+		namespace    string
+		replicas     uint64
+		err          error
+		handler      func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:         "scale request accepted",
+			functionName: funcName,
+			namespace:    nsName,
+			replicas:     0,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusAccepted)
+			},
+		},
+		{
+			name:         "function not found",
+			functionName: funcName,
+			namespace:    nsName,
+			replicas:     0,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: createHttpError(fmt.Errorf("function %s not found", funcName), http.StatusNotFound),
+		},
+		{
+			name:         "client not authorized",
+			functionName: funcName,
+			namespace:    nsName,
+			replicas:     0,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), http.StatusUnauthorized),
+		},
+		{
+			name:         "unknown error",
+			functionName: funcName,
+			namespace:    nsName,
+			replicas:     0,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, "unknown error", http.StatusInternalServerError)
+			},
+			err: createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")), http.StatusUnauthorized),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			err := client.ScaleFunction(context.Background(), test.functionName, test.namespace, test.replicas)
 
 			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
