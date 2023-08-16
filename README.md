@@ -11,6 +11,11 @@ For use within functions:
 * ReadSecret() - Read a named secret from within an OpenFaaS Function
 * ReadSecrets() - Read all available secrets returning a queryable map
 
+Authentication helpers (See: [Authentication with IAM](#authentication-with-iam)):
+
+* ServiceAccountTokenSource - An implementation of the TokenSource interface to get an ID token by reading a Kubernetes projected service account token from `/var/secrets/tokens/openfaas-token` or the path set by the `token_mount_path` environment
+variable.
+
 ## Usage
 
 ```go
