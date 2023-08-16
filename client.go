@@ -35,6 +35,19 @@ func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Clien
 	}
 }
 
+type HttpError struct {
+	Err    error
+	Status int
+}
+
+func (e *HttpError) Error() string {
+	return e.Err.Error()
+}
+
+func createHttpError(err error, statusCode int) *HttpError {
+	return &HttpError{Err: err, Status: statusCode}
+}
+
 // GetNamespaces get openfaas namespaces
 func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
 	u := s.GatewayURL
@@ -54,7 +67,7 @@ func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return namespaces, fmt.Errorf("unable to make request: %w", err)
+		return namespaces, fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 	}
 
 	if res.Body != nil {
@@ -66,8 +79,15 @@ func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
 		return namespaces, err
 	}
 
-	if res.StatusCode == http.StatusUnauthorized {
-		return namespaces, fmt.Errorf("check authorization, status code: %d", res.StatusCode)
+	switch res.StatusCode {
+	case http.StatusOK:
+		break
+
+	case http.StatusUnauthorized:
+		return namespaces, createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
+
+	default:
+		return namespaces, createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut)), res.StatusCode)
 	}
 
 	if len(bytesOut) == 0 {
@@ -106,7 +126,7 @@ func (s *Client) GetFunctions(ctx context.Context, namespace string) ([]types.Fu
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return []types.FunctionStatus{}, fmt.Errorf("unable to make HTTP request: %w", err)
+		return []types.FunctionStatus{}, fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 	}
 
 	if res.Body != nil {
@@ -114,6 +134,17 @@ func (s *Client) GetFunctions(ctx context.Context, namespace string) ([]types.Fu
 	}
 
 	body, _ := io.ReadAll(res.Body)
+
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK:
+		break
+
+	case http.StatusUnauthorized:
+		return nil, createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
+
+	default:
+		return nil, createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(body)), res.StatusCode)
+	}
 
 	functions := []types.FunctionStatus{}
 	if err := json.Unmarshal(body, &functions); err != nil {
@@ -142,7 +173,7 @@ func (s *Client) GetInfo(ctx context.Context) (SystemInfo, error) {
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return SystemInfo{}, fmt.Errorf("unable to make HTTP request: %w", err)
+		return SystemInfo{}, fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 	}
 
 	if res.Body != nil {
@@ -185,7 +216,7 @@ func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return types.FunctionDeployment{}, fmt.Errorf("unable to make HTTP request: %w", err)
+		return types.FunctionDeployment{}, fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 	}
 
 	if res.Body != nil {
@@ -193,6 +224,17 @@ func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types
 	}
 
 	body, _ := io.ReadAll(res.Body)
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		break
+
+	case http.StatusUnauthorized:
+		return types.FunctionDeployment{}, createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
+
+	default:
+		return types.FunctionDeployment{}, createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(body)), res.StatusCode)
+	}
 
 	functions := types.FunctionDeployment{}
 	if err := json.Unmarshal(body, &functions); err != nil {
@@ -203,20 +245,19 @@ func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types
 	return functions, nil
 }
 
-func (s *Client) Deploy(ctx context.Context, spec types.FunctionDeployment) (int, error) {
+func (s *Client) Deploy(ctx context.Context, spec types.FunctionDeployment) error {
 	return s.deploy(ctx, http.MethodPost, spec)
-
 }
 
-func (s *Client) Update(ctx context.Context, spec types.FunctionDeployment) (int, error) {
+func (s *Client) Update(ctx context.Context, spec types.FunctionDeployment) error {
 	return s.deploy(ctx, http.MethodPut, spec)
 }
 
-func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionDeployment) (int, error) {
+func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionDeployment) error {
 
 	bodyBytes, err := json.Marshal(spec)
 	if err != nil {
-		return http.StatusBadRequest, err
+		return createHttpError(err, http.StatusBadRequest)
 	}
 
 	bodyReader := bytes.NewReader(bodyBytes)
@@ -226,18 +267,18 @@ func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionD
 
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
 	if err != nil {
-		return http.StatusBadGateway, err
+		return fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
 	if s.ClientAuth != nil {
 		if err := s.ClientAuth.Set(req); err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("unable to set Authorization header: %w", err)
+			return fmt.Errorf("unable to set Authorization header: %w", err)
 		}
 	}
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return http.StatusBadGateway, err
+		return fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 	}
 
 	var body []byte
@@ -248,13 +289,13 @@ func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionD
 
 	switch res.StatusCode {
 	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
-		return res.StatusCode, nil
+		return nil
 
 	case http.StatusUnauthorized:
-		return res.StatusCode, fmt.Errorf("unauthorized action, please setup authentication for this server")
+		return createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
 
 	default:
-		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(body))
+		return createHttpError(fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(body)), res.StatusCode)
 	}
 }
 
@@ -280,7 +321,7 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
 	if err != nil {
-		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
+		return fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
 	if s.ClientAuth != nil {
@@ -290,7 +331,7 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
+		return fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 
 	}
 
@@ -303,10 +344,10 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 		break
 
 	case http.StatusNotFound:
-		return fmt.Errorf("function %s not found", functionName)
+		return createHttpError(fmt.Errorf("function %s not found", functionName), res.StatusCode)
 
 	case http.StatusUnauthorized:
-		return fmt.Errorf("unauthorized action, please setup authentication for this server")
+		return createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
 
 	default:
 		var err error
@@ -315,7 +356,7 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 			return err
 		}
 
-		return fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut))
+		return createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut)), res.StatusCode)
 	}
 	return nil
 }
@@ -338,7 +379,7 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
 	if err != nil {
-		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
+		return fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
 	if s.ClientAuth != nil {
@@ -348,7 +389,7 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
+		return fmt.Errorf("unable to make HTTP request to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
 
 	}
 
@@ -361,10 +402,10 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 		break
 
 	case http.StatusNotFound:
-		return fmt.Errorf("function %s not found", functionName)
+		return createHttpError(fmt.Errorf("function %s not found", functionName), res.StatusCode)
 
 	case http.StatusUnauthorized:
-		return fmt.Errorf("unauthorized action, please setup authentication for this server")
+		return createHttpError(fmt.Errorf("unauthorized action, please setup authentication for this server"), res.StatusCode)
 
 	default:
 		var err error
@@ -373,7 +414,7 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 			return err
 		}
 
-		return fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut))
+		return createHttpError(fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut)), res.StatusCode)
 	}
 	return nil
 }
