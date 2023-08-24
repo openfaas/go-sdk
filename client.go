@@ -161,7 +161,7 @@ func (s *Client) GetInfo(ctx context.Context) (SystemInfo, error) {
 }
 
 // GetFunction gives a richer payload than GetFunctions, but for a specific function
-func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types.FunctionDeployment, error) {
+func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types.FunctionStatus, error) {
 	u := s.GatewayURL
 
 	u.Path = "/system/function/" + name
@@ -174,18 +174,18 @@ func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return types.FunctionDeployment{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
+		return types.FunctionStatus{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
 	}
 
 	if s.ClientAuth != nil {
 		if err := s.ClientAuth.Set(req); err != nil {
-			return types.FunctionDeployment{}, fmt.Errorf("unable to set Authorization header: %w", err)
+			return types.FunctionStatus{}, fmt.Errorf("unable to set Authorization header: %w", err)
 		}
 	}
 
 	res, err := s.Client.Do(req)
 	if err != nil {
-		return types.FunctionDeployment{}, fmt.Errorf("unable to make HTTP request: %w", err)
+		return types.FunctionStatus{}, fmt.Errorf("unable to make HTTP request: %w", err)
 	}
 
 	if res.Body != nil {
@@ -194,13 +194,13 @@ func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types
 
 	body, _ := io.ReadAll(res.Body)
 
-	functions := types.FunctionDeployment{}
-	if err := json.Unmarshal(body, &functions); err != nil {
-		return types.FunctionDeployment{},
+	function := types.FunctionStatus{}
+	if err := json.Unmarshal(body, &function); err != nil {
+		return types.FunctionStatus{},
 			fmt.Errorf("unable to unmarshal value: %q, error: %w", string(body), err)
 	}
 
-	return functions, nil
+	return function, nil
 }
 
 func (s *Client) Deploy(ctx context.Context, spec types.FunctionDeployment) (int, error) {

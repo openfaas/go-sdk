@@ -78,4 +78,42 @@ auth := &sdk.TokenAuth{
 client := sdk.NewClient(gatewayURL, auth, http.DefaultClient)
 ```
 
+### Authentication with Federated Gateway
+
+```go
+func Test_ClientCredentials(t *testing.T) {
+	clientID := ""
+	clientSecret := ""
+	tokenURL := "https://keycloak.example.com/realms/openfaas/protocol/openid-connect/token"
+	scope := "email"
+	grantType := "client_credentials"
+
+	auth := NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType)
+
+	token, err := auth.Token()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if token == "" {
+		t.Fatal("token is empty")
+	}
+
+	u, _ := url.Parse("https://fed-gw.exit.welteki.dev")
+
+	client := NewClient(u, &ClientCredentialsAuth{tokenSource: auth}, http.DefaultClient)
+
+	fns, err := client.GetFunctions(context.Background(), "openfaas-fn")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(fns) == 0 {
+		t.Fatal("no functions found")
+	}
+}
+```
+
+## License
+
 License: MIT
