@@ -27,7 +27,8 @@ type Token struct {
 	Expiry time.Time
 }
 
-// Expired reports whether the token is expired.
+// Expired reports whether the token is expired, and will start
+// to return false 10s before the actual expiration time.
 func (t *Token) Expired() bool {
 	if t.Expiry.IsZero() {
 		return false
