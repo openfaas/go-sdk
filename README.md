@@ -99,7 +99,7 @@ func Test_ClientCredentials(t *testing.T) {
 		t.Fatal("token is empty")
 	}
 
-	u, _ := url.Parse("https://fed-gw.exit.welteki.dev")
+	u, _ := url.Parse("https://fed-gw.example.com")
 
 	client := NewClient(u, &ClientCredentialsAuth{tokenSource: auth}, http.DefaultClient)
 
