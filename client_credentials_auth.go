@@ -11,18 +11,14 @@ import (
 	"time"
 )
 
-type ClientCredentialsTokenSource struct {
-	clientID     string
-	clientSecret string
-	tokenURL     string
-	scope        string
-	grantType    string
-	token        *ClientCredentialsToken
-	lock         sync.RWMutex
+type ClientCredentialsAuth struct {
+	tokenSource TokenSource
 }
 
-type ClientCredentialsAuth struct {
-	tokenSource *ClientCredentialsTokenSource
+func NewClientCredentialsAuth(ts TokenSource) *ClientCredentialsAuth {
+	return &ClientCredentialsAuth{
+		tokenSource: ts,
+	}
 }
 
 func (cca *ClientCredentialsAuth) Set(req *http.Request) error {
@@ -34,7 +30,21 @@ func (cca *ClientCredentialsAuth) Set(req *http.Request) error {
 	return nil
 }
 
-func NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType string) *ClientCredentialsTokenSource {
+// ClientCredentialsTokenSource can be used to obtain
+// an access token using the client credentials grant type.
+// Tested with Keycloak's token endpoint, additional changes may
+// be required for additional OIDC token endpoints.
+type ClientCredentialsTokenSource struct {
+	clientID     string
+	clientSecret string
+	tokenURL     string
+	scope        string
+	grantType    string
+	token        *ClientCredentialsToken
+	lock         sync.RWMutex
+}
+
+func NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType string) TokenSource {
 	return &ClientCredentialsTokenSource{
 		clientID:     clientID,
 		clientSecret: clientSecret,
@@ -108,6 +118,9 @@ func obtainClientCredentialsToken(clientID, clientSecret, tokenURL, scope, grant
 	return token, nil
 }
 
+// ClientCredentialsToken represents an access_token
+// obtained through the client credentials grant type.
+// This token is not associated with a human user.
 type ClientCredentialsToken struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
