@@ -88,7 +88,9 @@ func Test_ClientCredentials(t *testing.T) {
 	scope := "email"
 	grantType := "client_credentials"
 
-	auth := NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType)
+	audience = "" // Optional
+
+	auth := NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType, audience)
 
 	token, err := auth.Token()
 	if err != nil {
