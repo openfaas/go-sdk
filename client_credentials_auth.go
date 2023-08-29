@@ -40,17 +40,19 @@ type ClientCredentialsTokenSource struct {
 	tokenURL     string
 	scope        string
 	grantType    string
+	audience     string
 	token        *ClientCredentialsToken
 	lock         sync.RWMutex
 }
 
-func NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType string) TokenSource {
+func NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scope, grantType, audience string) TokenSource {
 	return &ClientCredentialsTokenSource{
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		tokenURL:     tokenURL,
 		scope:        scope,
 		grantType:    grantType,
+		audience:     audience,
 	}
 }
 
@@ -61,7 +63,7 @@ func (ts *ClientCredentialsTokenSource) Token() (string, error) {
 	if expired {
 		ts.lock.RUnlock()
 
-		token, err := obtainClientCredentialsToken(ts.clientID, ts.clientSecret, ts.tokenURL, ts.scope, ts.grantType)
+		token, err := obtainClientCredentialsToken(ts.clientID, ts.clientSecret, ts.tokenURL, ts.scope, ts.grantType, ts.audience)
 		if err != nil {
 			return "", err
 		}
@@ -77,13 +79,17 @@ func (ts *ClientCredentialsTokenSource) Token() (string, error) {
 	return ts.token.AccessToken, nil
 }
 
-func obtainClientCredentialsToken(clientID, clientSecret, tokenURL, scope, grantType string) (*ClientCredentialsToken, error) {
+func obtainClientCredentialsToken(clientID, clientSecret, tokenURL, scope, grantType, audience string) (*ClientCredentialsToken, error) {
 
 	reqBody := url.Values{}
 	reqBody.Set("client_id", clientID)
 	reqBody.Set("client_secret", clientSecret)
 	reqBody.Set("grant_type", grantType)
 	reqBody.Set("scope", scope)
+
+	if len(audience) > 0 {
+		reqBody.Set("audience", audience)
+	}
 
 	buffer := []byte(reqBody.Encode())
 
