@@ -205,3 +205,254 @@ func TestSdk_DeleteFunction(t *testing.T) {
 		})
 	}
 }
+
+func TestSdk_GetNamespace(t *testing.T) {
+	nsName := "ns1"
+	tests := []struct {
+		name      string
+		namespace string
+		err       error
+		handler   func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:      "namespace not found",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: fmt.Errorf("namespace %s not found", nsName),
+		},
+		{
+			name:      "client not authorized",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name:      "unknown error",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.GetNamespace(context.Background(), test.namespace)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_CreateNamespace(t *testing.T) {
+	nsName := "ns1"
+	tests := []struct {
+		name    string
+		req     types.FunctionNamespace
+		err     error
+		handler func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name: "namespace created with no label and annotation",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "namespace created with no label and annotation",
+			req: types.FunctionNamespace{
+				Name:        nsName,
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "client not authorized",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name: "unknown error",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.CreateNamespace(context.Background(), test.req)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_UpdateNamespace(t *testing.T) {
+	nsName := "ns1"
+	tests := []struct {
+		name    string
+		req     types.FunctionNamespace
+		err     error
+		handler func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name: "namespace updated with no label and annotation",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "namespace updated with no label and annotation",
+			req: types.FunctionNamespace{
+				Name:        nsName,
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "namespace not found",
+			req: types.FunctionNamespace{
+				Name:        nsName,
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: fmt.Errorf("namespace %s not found", nsName),
+		},
+		{
+			name: "client not authorized",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name: "unknown error",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.UpdateNamespace(context.Background(), test.req)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_DeleteNamespace(t *testing.T) {
+	nsName := "ns1"
+	tests := []struct {
+		name      string
+		namespace string
+		err       error
+		handler   func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:      "namespace deleted",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name:      "namespace not found",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: fmt.Errorf("namespace %s not found", nsName),
+		},
+		{
+			name:      "client not authorized",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name:      "unknown error",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			err := client.DeleteNamespace(context.Background(), test.namespace)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
