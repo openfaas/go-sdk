@@ -30,7 +30,7 @@ type ClientAuth interface {
 func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Client {
 	return &Client{
 		GatewayURL: gatewayURL,
-		Client:     http.DefaultClient,
+		Client:     client,
 		ClientAuth: auth,
 	}
 }
