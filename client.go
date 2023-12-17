@@ -646,3 +646,200 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 	}
 	return nil
 }
+
+// GetSecrets list all secrets
+func (s *Client) GetSecrets(ctx context.Context, namespace string) ([]types.Secret, error) {
+	u := s.GatewayURL
+	u.Path = "/system/secrets"
+
+	if len(namespace) > 0 {
+		query := u.Query()
+		query.Set("namespace", namespace)
+		u.RawQuery = query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return []types.Secret{}, fmt.Errorf("unable to create request for %s, error: %w", u.String(), err)
+	}
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return []types.Secret{}, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+
+	res, err := s.do(req)
+	if err != nil {
+		return []types.Secret{}, fmt.Errorf("unable to make HTTP request: %w", err)
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	body, _ := io.ReadAll(res.Body)
+
+	secrets := []types.Secret{}
+	if err := json.Unmarshal(body, &secrets); err != nil {
+		return []types.Secret{},
+			fmt.Errorf("unable to unmarshal value: %q, error: %w", string(body), err)
+	}
+
+	return secrets, nil
+}
+
+// CreateSecret creates a secret
+func (s *Client) CreateSecret(ctx context.Context, spec types.Secret) (int, error) {
+
+	bodyBytes, err := json.Marshal(spec)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	u := s.GatewayURL
+	u.Path = "/system/secrets"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+
+	res, err := s.do(req)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	var body []byte
+	if res.Body != nil {
+		defer res.Body.Close()
+		body, _ = io.ReadAll(res.Body)
+	}
+
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
+		return res.StatusCode, nil
+
+	case http.StatusUnauthorized:
+		return res.StatusCode, fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(body))
+	}
+}
+
+// UpdateSecret updates a secret
+func (s *Client) UpdateSecret(ctx context.Context, spec types.Secret) (int, error) {
+
+	bodyBytes, err := json.Marshal(spec)
+	if err != nil {
+		return http.StatusBadRequest, err
+	}
+
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	u := s.GatewayURL
+	u.Path = "/system/secrets"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u.String(), bodyReader)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+
+	res, err := s.do(req)
+	if err != nil {
+		return http.StatusBadGateway, err
+	}
+
+	var body []byte
+	if res.Body != nil {
+		defer res.Body.Close()
+		body, _ = io.ReadAll(res.Body)
+	}
+
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
+		return res.StatusCode, nil
+
+	case http.StatusNotFound:
+		return res.StatusCode, fmt.Errorf("secret %s not found", spec.Name)
+
+	case http.StatusUnauthorized:
+		return res.StatusCode, fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		return res.StatusCode, fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(body))
+	}
+}
+
+// DeleteSecret deletes a secret
+func (s *Client) DeleteSecret(ctx context.Context, secretName, namespace string) error {
+
+	delReq := types.Secret{
+		Name:      secretName,
+		Namespace: namespace,
+	}
+
+	var err error
+
+	bodyBytes, _ := json.Marshal(delReq)
+	bodyReader := bytes.NewReader(bodyBytes)
+
+	u := s.GatewayURL
+	u.Path = "/system/secrets"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
+	if err != nil {
+		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
+	}
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+	res, err := s.do(req)
+	if err != nil {
+		return fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
+
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	switch res.StatusCode {
+	case http.StatusAccepted, http.StatusOK, http.StatusCreated:
+		break
+
+	case http.StatusNotFound:
+		return fmt.Errorf("secret %s not found", secretName)
+
+	case http.StatusUnauthorized:
+		return fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		var err error
+		bytesOut, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+
+		return fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut))
+	}
+	return nil
+}

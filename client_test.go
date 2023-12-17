@@ -456,3 +456,192 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 		})
 	}
 }
+
+func TestSdk_CreateSecret(t *testing.T) {
+	nsName := "ns1"
+	secretName := "secret1"
+	secretValue := "secretValue1"
+	tests := []struct {
+		name    string
+		req     types.Secret
+		err     error
+		handler func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name: "secret created",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "client not authorized",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name: "unknown error",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.CreateSecret(context.Background(), test.req)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_UpdateSecret(t *testing.T) {
+	nsName := "ns1"
+	secretName := "secret1"
+	secretValue := "secretValue1"
+	tests := []struct {
+		name    string
+		req     types.Secret
+		err     error
+		handler func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name: "secret updated",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "client not authorized",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name: "unknown error",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			_, err := client.UpdateSecret(context.Background(), test.req)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
+
+func TestSdk_DeleteSecret(t *testing.T) {
+	secretName := "secret1"
+	nsName := "ns1"
+	tests := []struct {
+		name       string
+		secretName string
+		namespace  string
+		err        error
+		handler    func(rw http.ResponseWriter, req *http.Request)
+	}{
+		{
+			name:       "secret deleted",
+			secretName: secretName,
+			namespace:  nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusAccepted)
+			},
+		},
+		{
+			name:       "secret not found",
+			secretName: secretName,
+			namespace:  nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusNotFound)
+			},
+			err: fmt.Errorf("secret %s not found", secretName),
+		},
+		{
+			name:       "client not authorized",
+			secretName: secretName,
+			namespace:  nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusUnauthorized)
+			},
+			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+		},
+		{
+			name:       "unknown error",
+			secretName: secretName,
+			namespace:  nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				http.Error(rw, "unknown error", http.StatusInternalServerError)
+			},
+			err: fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := httptest.NewServer(http.HandlerFunc(test.handler))
+
+			sU, _ := url.Parse(s.URL)
+
+			client := NewClient(sU, nil, http.DefaultClient)
+			err := client.DeleteSecret(context.Background(), test.secretName, test.namespace)
+
+			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+				t.Fatalf("wanted %s, but got: %s", test.err, err)
+			}
+		})
+	}
+}
