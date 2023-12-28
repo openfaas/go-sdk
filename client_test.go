@@ -4,19 +4,115 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
+	"encoding/json"
+
+	"github.com/openfaas/faas-provider/logs"
 	"github.com/openfaas/faas-provider/types"
 )
 
-func TestSdk_GetNamespaces_TwoNamespaces(t *testing.T) {
-	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+func Test_Sdk_GetLogs(t *testing.T) {
+	s := httptest.NewServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 
-		rw.Write([]byte(`["openfaas-fn","dev"]`))
-	}))
+			flusher, ok := rw.(http.Flusher)
+			if !ok {
+				t.Fatal("expected http.ResponseWriter to be an http.Flusher")
+			}
+
+			rw.Header().Set("Connection", "Keep-Alive")
+			rw.Header().Set("Transfer-Encoding", "chunked")
+			rw.Header().Set("Content-Type", "application/x-ndjson")
+			rw.WriteHeader(http.StatusOK)
+
+			defer func() {
+				flusher.Flush()
+				rw.Write([]byte{})
+				flusher.Flush()
+			}()
+
+			data := []logs.Message{
+				{
+					Name:      "figlet",
+					Text:      "Forking fprocess.",
+					Namespace: "openfaas-fn",
+					Timestamp: time.Now(),
+				},
+				{
+					Name:      "figlet",
+					Text:      "Wrote 6 Bytes - Duration: 0.000921s",
+					Namespace: "openfaas-fn",
+					Timestamp: time.Now().Add(time.Second * 2),
+				},
+			}
+
+			flusher.Flush()
+
+			m := json.NewEncoder(rw)
+
+			if err := m.Encode(data[0]); err != nil {
+				t.Fatal(err)
+			}
+
+			flusher.Flush()
+
+			if err := m.Encode(data[1]); err != nil {
+				t.Fatal(err)
+			}
+			flusher.Flush()
+
+		}),
+	)
+
+	defer s.Close()
+
+	sU, _ := url.Parse(s.URL)
+
+	client := NewClient(sU, nil, http.DefaultClient)
+
+	since := time.Now().Add(-time.Hour)
+	logs, err := client.GetLogs(
+		context.Background(),
+		"figlet",
+		"openfaas-fn",
+		false,
+		100,
+		&since,
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	printed := 0
+	for msg := range logs {
+		log.Printf("name: %s\t%s", msg.Name, msg.Text)
+		printed++
+	}
+
+	if printed == 0 {
+		t.Fatal("no logs printed")
+	}
+
+	if printed != 2 {
+		t.Fatalf("expected 2 logs, but got: %d", printed)
+	}
+
+}
+
+func TestSdk_GetNamespaces_TwoNamespaces(t *testing.T) {
+	s := httptest.NewServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+
+			rw.Write([]byte(`["openfaas-fn","dev"]`))
+		}),
+	)
 
 	sU, _ := url.Parse(s.URL)
 
@@ -45,10 +141,12 @@ func TestSdk_GetNamespaces_TwoNamespaces(t *testing.T) {
 }
 
 func TestSdk_GetNamespaces_NoNamespaces(t *testing.T) {
-	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+	s := httptest.NewServer(
+		http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 
-		rw.Write([]byte(`[]`))
-	}))
+			rw.Write([]byte(`[]`))
+		}),
+	)
 
 	sU, _ := url.Parse(s.URL)
 
@@ -109,7 +207,9 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name:         "unknown error",
@@ -118,7 +218,11 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, "unknown error\n"),
+			err: fmt.Errorf(
+				"unexpected status code: %d, message: %q",
+				http.StatusInternalServerError,
+				"unknown error\n",
+			),
 		},
 	}
 
@@ -177,7 +281,9 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name:         "unknown error",
@@ -186,7 +292,11 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: fmt.Errorf(
+				"server returned unexpected status code %d, message: %q",
+				http.StatusInternalServerError,
+				string("unknown error\n"),
+			),
 		},
 	}
 
@@ -197,7 +307,11 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			sU, _ := url.Parse(s.URL)
 
 			client := NewClient(sU, nil, http.DefaultClient)
-			err := client.DeleteFunction(context.Background(), test.functionName, test.namespace)
+			err := client.DeleteFunction(
+				context.Background(),
+				test.functionName,
+				test.namespace,
+			)
 
 			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
@@ -228,7 +342,9 @@ func TestSdk_GetNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name:      "unknown error",
@@ -236,7 +352,11 @@ func TestSdk_GetNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: fmt.Errorf(
+				"unexpected status code: %d, message: %q",
+				http.StatusInternalServerError,
+				string("unknown error\n"),
+			),
 		},
 	}
 
@@ -292,7 +412,9 @@ func TestSdk_CreateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name: "unknown error",
@@ -302,7 +424,11 @@ func TestSdk_CreateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: fmt.Errorf(
+				"unexpected status code: %d, message: %q",
+				http.StatusInternalServerError,
+				string("unknown error\n"),
+			),
 		},
 	}
 
@@ -370,7 +496,9 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name: "unknown error",
@@ -380,7 +508,11 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: fmt.Errorf(
+				"unexpected status code: %d, message: %q",
+				http.StatusInternalServerError,
+				string("unknown error\n"),
+			),
 		},
 	}
 
@@ -429,7 +561,9 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: fmt.Errorf(
+				"unauthorized action, please setup authentication for this server",
+			),
 		},
 		{
 			name:      "unknown error",
@@ -437,7 +571,11 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: fmt.Errorf(
+				"unexpected status code: %d, message: %q",
+				http.StatusInternalServerError,
+				string("unknown error\n"),
+			),
 		},
 	}
 
