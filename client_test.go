@@ -456,3 +456,26 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 		})
 	}
 }
+
+// func TestSdk_GetLogs(t *testing.T) {
+// 	nsName := "ns1"
+// 	funcName := "func1"
+
+// 	tests := []struct {
+// 		name    string
+// 		handler func(rw http.ResponseWriter, req *http.Request)
+// 	}{
+// 		{
+// 			name: "send logs",
+// 			handler: func(rw http.ResponseWriter, req *http.Request) {
+// 				rw.Write()
+// 			},
+// 		}
+// 	}
+
+// 	for _, test := range tests {
+// 		t.Run(test.name, func(t *testing.T) {
+
+// 		})
+// 	}
+// }
