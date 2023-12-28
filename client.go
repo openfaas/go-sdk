@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
+	"github.com/openfaas/faas-provider/logs"
 	"github.com/openfaas/faas-provider/types"
 )
 
@@ -59,6 +63,7 @@ func (s *Client) do(req *http.Request) (*http.Response, error) {
 			req.Body = io.NopCloser(strings.NewReader(buf.String()))
 		}
 	}
+
 	return s.client.Do(req)
 }
 
@@ -842,4 +847,96 @@ func (s *Client) DeleteSecret(ctx context.Context, secretName, namespace string)
 		return fmt.Errorf("server returned unexpected status code %d, message: %q", res.StatusCode, string(bytesOut))
 	}
 	return nil
+}
+
+func generateLogRequest(functionName, namespace string, follow bool, tail int, since *time.Time) url.Values {
+	query := url.Values{}
+	query.Add("name", functionName)
+	if len(namespace) > 0 {
+		query.Add("namespace", namespace)
+	}
+
+	if follow {
+		query.Add("follow", "1")
+	} else {
+		query.Add("follow", "0")
+	}
+
+	if since != nil {
+		query.Add("since", since.Format(time.RFC3339))
+	}
+
+	if tail != 0 {
+		query.Add("tail", strconv.Itoa(tail))
+	}
+
+	return query
+}
+
+func (s *Client) GetLogs(ctx context.Context, functionName, namespace string, follow bool, tail int, since *time.Time) (<-chan logs.Message, error) {
+
+	var err error
+
+	u := s.GatewayURL
+	u.Path = "/system/logs"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", u.String(), err)
+	}
+
+	req.URL.RawQuery = generateLogRequest(functionName, namespace, follow, tail, since).Encode()
+	log.Printf("%s", req.URL.RawQuery)
+
+	if s.ClientAuth != nil {
+		if err := s.ClientAuth.Set(req); err != nil {
+			return nil, fmt.Errorf("unable to set Authorization header: %w", err)
+		}
+	}
+
+	res, err := s.do(req)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect to OpenFaaS on URL: %s, error: %s", s.GatewayURL, err)
+
+	}
+
+	logStream := make(chan logs.Message, 1000)
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		go func() {
+			defer func() {
+				close(logStream)
+			}()
+
+			if res.Body != nil {
+				defer res.Body.Close()
+			}
+
+			decoder := json.NewDecoder(res.Body)
+
+			for decoder.More() {
+				msg := logs.Message{}
+				err := decoder.Decode(&msg)
+				if err != nil {
+					log.Printf("cannot parse log results: %s", err.Error())
+					return
+				}
+				logStream <- msg
+			}
+		}()
+
+	case http.StatusNotFound:
+		return nil, fmt.Errorf("function: %s not found", functionName)
+
+	case http.StatusUnauthorized:
+		return nil, fmt.Errorf("unauthorized action, please setup authentication for this server")
+
+	default:
+		bytesOut, err := io.ReadAll(res.Body)
+		if err == nil {
+			return nil, fmt.Errorf("unexpected status code: %d, message: %q", res.StatusCode, string(bytesOut))
+		}
+	}
+	return logStream, nil
 }
