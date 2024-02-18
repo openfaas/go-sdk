@@ -141,6 +141,8 @@ if err != nil {
 }
 ```
 
+Please refer [examples](https://github.com/openfaas/go-sdk/tree/master/examples) folder for code examples of each operation
+
 ## License
 
 License: MIT
