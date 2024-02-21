@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,7 +26,8 @@ func main() {
 
 	ns, err := client.GetNamespaces(context.Background())
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("No Of Namespaces: %d\n", len(ns))
 
@@ -36,12 +36,14 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Create Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Create Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	ns, err = client.GetNamespaces(context.Background())
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("No Of Namespaces: %d\n", len(ns))
 
@@ -49,6 +51,7 @@ func main() {
 	err = client.DeleteNamespace(context.Background(), "test-namespace")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Delete Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Delete Failed: %s", err)
+		os.Exit(1)
 	}
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,14 +33,16 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Create Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Create Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	// Get Secrets
 	secrets, err := client.GetSecrets(context.Background(), "openfaas-fn")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 
 	for _, s := range secrets {
@@ -51,7 +52,8 @@ func main() {
 	err = client.DeleteSecret(context.Background(), "env-store-test", "openfaas-fn")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Delete Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Delete Failed: %s", err)
+		os.Exit(1)
 	}
 
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,7 +26,8 @@ func main() {
 
 	fns, err := client.GetFunctions(context.Background(), "openfaas-fn")
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("No Of Functions: %d\n", len(fns))
 
@@ -42,18 +42,21 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Deploy Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Deploy Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	fns, err = client.GetFunctions(context.Background(), "openfaas-fn")
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("No Of Functions: %d\n", len(fns))
 
 	err = client.DeleteFunction(context.Background(), "env-store-test", "openfaas-fn")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Delete Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Delete Failed: %s", err)
+		os.Exit(1)
 	}
 }

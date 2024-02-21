@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,7 +32,8 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Create Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Create Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	status, err = client.UpdateSecret(context.Background(), types.Secret{
@@ -44,12 +45,14 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Update Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Update Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	err = client.DeleteSecret(context.Background(), "env-store-test", "openfaas-fn")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Delete Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Delete Failed: %s", err)
+		os.Exit(1)
 	}
 }
