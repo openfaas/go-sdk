@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -35,7 +34,8 @@ func main() {
 	})
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Deploy Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Deploy Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	// Follow is allows the user to request a stream of logs until the timeout
@@ -47,7 +47,8 @@ func main() {
 
 	logsChan, err := client.GetLogs(context.Background(), "env-store-test", "openfaas-fn", follow, tail, &since)
 	if err != nil {
-		log.Printf("Get Logs Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Logs Failed: %s", err)
+		os.Exit(1)
 	}
 
 	fmt.Println("Logs Received....")

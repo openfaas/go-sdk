@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -38,7 +37,8 @@ func main() {
 
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Deploy Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Deploy Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	fmt.Println("Wait for 15 seconds....")
@@ -46,7 +46,8 @@ func main() {
 	time.Sleep(15 * time.Second)
 	fn, err := client.GetFunction(context.Background(), "env-store-test", "openfaas-fn")
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("Function: %v \n", fn)
 
@@ -62,7 +63,8 @@ func main() {
 
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Status: %d Update Failed: %s", status, err)
+		fmt.Fprintf(os.Stderr, "Status: %d Update Failed: %s", status, err)
+		os.Exit(1)
 	}
 
 	fmt.Println("Wait for 15 seconds....")
@@ -70,7 +72,8 @@ func main() {
 	time.Sleep(15 * time.Second)
 	fn, err = client.GetFunction(context.Background(), "env-store-test", "openfaas-fn")
 	if err != nil {
-		log.Printf("Get Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Get Failed: %s", err)
+		os.Exit(1)
 	}
 	fmt.Printf("Function: %v \n", fn)
 
@@ -78,6 +81,7 @@ func main() {
 	err = client.DeleteFunction(context.Background(), "env-store-test", "openfaas-fn")
 	// non 200 status value will have some error
 	if err != nil {
-		log.Printf("Delete Failed: %s", err)
+		fmt.Fprintf(os.Stderr, "Delete Failed: %s", err)
+		os.Exit(1)
 	}
 }
