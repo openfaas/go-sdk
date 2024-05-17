@@ -21,9 +21,11 @@ import (
 
 // Client is used to manage OpenFaaS functions
 type Client struct {
-	GatewayURL *url.URL
-	client     *http.Client
-	ClientAuth ClientAuth
+	GatewayURL          *url.URL
+	ClientAuth          ClientAuth
+	FunctionTokenSource TokenSource
+
+	client *http.Client
 }
 
 // Wrap http request Do function to support debug capabilities
@@ -73,13 +75,52 @@ type ClientAuth interface {
 	Set(req *http.Request) error
 }
 
+type ClientOption func(*Client)
+
+func WithFunctionTokenSource(tokenSource TokenSource) ClientOption {
+	return func(c *Client) {
+		c.FunctionTokenSource = tokenSource
+	}
+}
+
+func WithAuthentication(auth ClientAuth) ClientOption {
+	return func(c *Client) {
+		c.ClientAuth = auth
+	}
+}
+
 // NewClient creates an Client for managing OpenFaaS
 func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Client {
-	return &Client{
+	return NewClientWithOpts(gatewayURL, client, WithAuthentication(auth))
+}
+
+func NewClientWithOpts(gatewayURL *url.URL, client *http.Client, options ...ClientOption) *Client {
+	c := &Client{
 		GatewayURL: gatewayURL,
-		client:     client,
-		ClientAuth: auth,
+
+		client: client,
 	}
+
+	for _, option := range options {
+		option(c)
+	}
+
+	if c.ClientAuth != nil && c.FunctionTokenSource == nil {
+		// Use auth as the default function token source for IAM function authentication
+		// if it implements the TokenSource interface.
+		functionTokenSource, ok := c.ClientAuth.(TokenSource)
+		if ok {
+			c.FunctionTokenSource = functionTokenSource
+		}
+	}
+
+	return c
+}
+
+func (s *Client) WithFunctionTokenSource(tokenSource TokenSource) *Client {
+	s.FunctionTokenSource = tokenSource
+
+	return s
 }
 
 // GetNamespaces get openfaas namespaces
