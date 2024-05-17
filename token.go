@@ -9,7 +9,7 @@ import (
 // expirations due to client-server time mismatches.
 const expiryDelta = 10 * time.Second
 
-// Token represents an OpenFaaS ID token
+// Token represents an OIDC token
 type Token struct {
 	// IDToken is the OIDC access token that authorizes and authenticates
 	// the requests.
