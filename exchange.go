@@ -53,5 +53,6 @@ func ExchangeIDToken(tokenURL, rawIDToken string) (*Token, error) {
 	return &Token{
 		IDToken: tj.AccessToken,
 		Expiry:  tj.expiry(),
+		Scope:   tj.scope(),
 	}, nil
 }
