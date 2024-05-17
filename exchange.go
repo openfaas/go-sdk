@@ -12,11 +12,25 @@ import (
 // Exchange an OIDC ID Token from an IdP for OpenFaaS token
 // using the token exchange grant type.
 // tokenURL should be the OpenFaaS token endpoint within the internal OIDC service
-func ExchangeIDToken(tokenURL, rawIDToken string) (*Token, error) {
+func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*Token, error) {
+	c := &ExchangeConfig{}
+
+	for _, option := range options {
+		option(c)
+	}
+
 	v := url.Values{}
 	v.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
 	v.Set("subject_token_type", "urn:ietf:params:oauth:token-type:id_token")
 	v.Set("subject_token", rawIDToken)
+
+	for _, aud := range c.Audience {
+		v.Add("audience", aud)
+	}
+
+	if len(c.Scope) > 0 {
+		v.Set("scope", strings.Join(c.Scope, " "))
+	}
 
 	u, _ := url.Parse(tokenURL)
 
@@ -55,4 +69,29 @@ func ExchangeIDToken(tokenURL, rawIDToken string) (*Token, error) {
 		Expiry:  tj.expiry(),
 		Scope:   tj.scope(),
 	}, nil
+}
+
+type ExchangeConfig struct {
+	Audience []string
+	Scope    []string
+}
+
+// ExchangeOption is used to implement functional-style options that modify the
+// config setting for the OpenFaaS token exchange.
+type ExchangeOption func(*ExchangeConfig)
+
+// WithAudience is an option to configure the audience requested
+// in the token exchange.
+func WithAudience(audience []string) ExchangeOption {
+	return func(c *ExchangeConfig) {
+		c.Audience = audience
+	}
+}
+
+// WithScope is an option to configure the scope requested
+// in the token exchange.
+func WithScope(scope []string) ExchangeOption {
+	return func(c *ExchangeConfig) {
+		c.Scope = scope
+	}
 }
