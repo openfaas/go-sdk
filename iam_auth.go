@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -56,9 +57,15 @@ func (a *TokenAuth) getToken() (string, error) {
 		}
 
 		token, err := ExchangeIDToken(a.TokenURL, idToken)
-		if err != nil {
-			return "", err
+
+		var authError *OAuthError
+		if errors.As(err, &authError) {
+			return "", fmt.Errorf("failed to exchange token for an OpenFaaS token: %s", authError.Description)
 		}
+		if err != nil {
+			return "", fmt.Errorf("failed to exchange token for an OpenFaaS token: %s", err)
+		}
+
 		a.token = token
 	}
 

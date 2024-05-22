@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -57,4 +58,17 @@ func (t *tokenJSON) scope() []string {
 	}
 
 	return []string{}
+}
+
+// OAuthError represents an OAuth error response.
+type OAuthError struct {
+	Err         string `json:"error"`
+	Description string `json:"error_description,omitempty"`
+}
+
+func (e *OAuthError) Error() string {
+	if len(e.Description) > 0 {
+		return fmt.Sprintf("%s: %s", e.Err, e.Description)
+	}
+	return e.Err
 }

@@ -111,7 +111,7 @@ func obtainClientCredentialsToken(clientID, clientSecret, tokenURL, scope, grant
 	}
 
 	if code := res.StatusCode; code < 200 || code > 299 {
-		return nil, fmt.Errorf("cannot fetch token: %v\nResponse: %s", res.Status, body)
+		return nil, fmt.Errorf("unexpected status code: %v\nResponse: %s", res.Status, body)
 	}
 
 	tj := &tokenJSON{}

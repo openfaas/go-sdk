@@ -55,8 +55,15 @@ func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*T
 		return nil, fmt.Errorf("cannot fetch token: %v", err)
 	}
 
+	if res.StatusCode == http.StatusBadRequest {
+		authErr := &OAuthError{}
+		if err := json.Unmarshal(body, authErr); err == nil {
+			return nil, authErr
+		}
+	}
+
 	if code := res.StatusCode; code < 200 || code > 299 {
-		return nil, fmt.Errorf("cannot fetch token: %v\nResponse: %s", res.Status, body)
+		return nil, fmt.Errorf("unexpected status code: %v\nResponse: %s", res.Status, body)
 	}
 
 	tj := &tokenJSON{}
