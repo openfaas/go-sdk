@@ -84,8 +84,9 @@ func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Clien
 
 // GetNamespaces get openfaas namespaces
 func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
-	u := s.GatewayURL
 	namespaces := []string{}
+
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/namespaces"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -130,7 +131,7 @@ func (s *Client) GetNamespaces(ctx context.Context) ([]string, error) {
 
 // GetNamespaces get openfaas namespaces
 func (s *Client) GetNamespace(ctx context.Context, namespace string) (types.FunctionNamespace, error) {
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = fmt.Sprintf("/system/namespace/%s", namespace)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -196,7 +197,7 @@ func (s *Client) CreateNamespace(ctx context.Context, spec types.FunctionNamespa
 
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/namespace/"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
@@ -255,7 +256,7 @@ func (s *Client) UpdateNamespace(ctx context.Context, spec types.FunctionNamespa
 
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = fmt.Sprintf("/system/namespace/%s", spec.Name)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u.String(), bodyReader)
@@ -310,7 +311,7 @@ func (s *Client) DeleteNamespace(ctx context.Context, namespace string) error {
 	bodyBytes, _ := json.Marshal(delReq)
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = fmt.Sprintf("/system/namespace/%s", namespace)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
@@ -357,8 +358,7 @@ func (s *Client) DeleteNamespace(ctx context.Context, namespace string) error {
 
 // GetFunctions lists all functions
 func (s *Client) GetFunctions(ctx context.Context, namespace string) ([]types.FunctionStatus, error) {
-	u := s.GatewayURL
-
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/functions"
 
 	if len(namespace) > 0 {
@@ -399,8 +399,7 @@ func (s *Client) GetFunctions(ctx context.Context, namespace string) ([]types.Fu
 }
 
 func (s *Client) GetInfo(ctx context.Context) (SystemInfo, error) {
-	u := s.GatewayURL
-
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/info"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -436,8 +435,7 @@ func (s *Client) GetInfo(ctx context.Context) (SystemInfo, error) {
 
 // GetFunction gives a richer payload than GetFunctions, but for a specific function
 func (s *Client) GetFunction(ctx context.Context, name, namespace string) (types.FunctionStatus, error) {
-	u := s.GatewayURL
-
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/function/" + name
 
 	if len(namespace) > 0 {
@@ -495,7 +493,7 @@ func (s *Client) deploy(ctx context.Context, method string, spec types.FunctionD
 
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/functions"
 
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
@@ -546,11 +544,8 @@ func (s *Client) ScaleFunction(ctx context.Context, functionName, namespace stri
 	bodyBytes, _ := json.Marshal(scaleReq)
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
-
-	functionPath := filepath.Join("/system/scale-function", functionName)
-
-	u.Path = functionPath
+	u, _ := url.Parse(s.GatewayURL.String())
+	u.Path = filepath.Join("/system/scale-function", functionName)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
 	if err != nil {
@@ -607,7 +602,7 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 	bodyBytes, _ := json.Marshal(delReq)
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/functions"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
@@ -654,7 +649,7 @@ func (s *Client) DeleteFunction(ctx context.Context, functionName, namespace str
 
 // GetSecrets list all secrets
 func (s *Client) GetSecrets(ctx context.Context, namespace string) ([]types.Secret, error) {
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/secrets"
 
 	if len(namespace) > 0 {
@@ -704,7 +699,7 @@ func (s *Client) CreateSecret(ctx context.Context, spec types.Secret) (int, erro
 
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/secrets"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bodyReader)
@@ -751,7 +746,7 @@ func (s *Client) UpdateSecret(ctx context.Context, spec types.Secret) (int, erro
 
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/secrets"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, u.String(), bodyReader)
@@ -804,7 +799,7 @@ func (s *Client) DeleteSecret(ctx context.Context, secretName, namespace string)
 	bodyBytes, _ := json.Marshal(delReq)
 	bodyReader := bytes.NewReader(bodyBytes)
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/secrets"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, u.String(), bodyReader)
@@ -877,7 +872,7 @@ func (s *Client) GetLogs(ctx context.Context, functionName, namespace string, fo
 
 	var err error
 
-	u := s.GatewayURL
+	u, _ := url.Parse(s.GatewayURL.String())
 	u.Path = "/system/logs"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
