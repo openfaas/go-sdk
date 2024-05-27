@@ -43,7 +43,7 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 			return nil, fmt.Errorf("failed to get function access token: %w", err)
 		}
 
-		// Consider caching the token in memory as long as the token is valid
+		// Function access tokens are cached in memory as long as the token is valid
 		// to prevent having to do a token exchange each time the function is invoked.
 		cacheKey := getFunctionTokenCacheKey(idToken, fmt.Sprintf("%s.%s", name, namespace))
 		functionToken, ok := c.fnTokenCache.Get(cacheKey)
@@ -71,6 +71,11 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 	return c.do(req)
 }
 
+// getFunctionTokenCacheKey computes a cache key for caching a function access token based
+// on the original id token that is exchanged for the function access token and the function
+// name e.g. figlet.openfaas-fn.
+// The original token is included in the hash to avoid cache hits for a function when the
+// source token changes.
 func getFunctionTokenCacheKey(idToken string, serviceName string) string {
 	hash := sha256.New()
 	hash.Write([]byte(idToken))
