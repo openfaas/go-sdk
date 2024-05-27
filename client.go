@@ -26,6 +26,8 @@ type Client struct {
 	FunctionTokenSource TokenSource
 
 	client *http.Client
+	// Cache for OpenFaaS function access tokens for invoking functions.
+	fnTokenCache *TokenCache
 }
 
 // Wrap http request Do function to support debug capabilities
@@ -98,7 +100,8 @@ func NewClientWithOpts(gatewayURL *url.URL, client *http.Client, options ...Clie
 	c := &Client{
 		GatewayURL: gatewayURL,
 
-		client: client,
+		client:       client,
+		fnTokenCache: NewTokenCache(),
 	}
 
 	for _, option := range options {
