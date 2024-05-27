@@ -19,14 +19,22 @@ import (
 	"github.com/openfaas/faas-provider/types"
 )
 
-// Client is used to manage OpenFaaS functions
+// Client is used to manage OpenFaaS and invoke functions
 type Client struct {
-	GatewayURL          *url.URL
-	ClientAuth          ClientAuth
+	// URL of the OpenFaaS gateway
+	GatewayURL *url.URL
+
+	// Authentication provider for authenticating request to the OpenFaaS API.
+	ClientAuth ClientAuth
+
+	// TokenSource for getting an ID token that can be exchanged for an
+	// OpenFaaS function access token to invoke functions.
 	FunctionTokenSource TokenSource
 
+	// Http client used for calls to the OpenFaaS gateway.
 	client *http.Client
-	// Cache for OpenFaaS function access tokens for invoking functions.
+
+	// OpenFaaS function access token cache for invoking functions.
 	fnTokenCache *TokenCache
 }
 
@@ -79,23 +87,27 @@ type ClientAuth interface {
 
 type ClientOption func(*Client)
 
+// WithFunctionTokenSource configures the function token source for the client.
 func WithFunctionTokenSource(tokenSource TokenSource) ClientOption {
 	return func(c *Client) {
 		c.FunctionTokenSource = tokenSource
 	}
 }
 
+// WithAuthentication configures the authentication provider fot the client.
 func WithAuthentication(auth ClientAuth) ClientOption {
 	return func(c *Client) {
 		c.ClientAuth = auth
 	}
 }
 
-// NewClient creates an Client for managing OpenFaaS
+// NewClient creates a Client for managing OpenFaaS and invoking functions
 func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Client {
 	return NewClientWithOpts(gatewayURL, client, WithAuthentication(auth))
 }
 
+// NewClientWithOpts creates a Client for managing OpenFaaS and invoking functions
+// It takes a list of ClientOptions to configure the client.
 func NewClientWithOpts(gatewayURL *url.URL, client *http.Client, options ...ClientOption) *Client {
 	c := &Client{
 		GatewayURL: gatewayURL,
@@ -118,12 +130,6 @@ func NewClientWithOpts(gatewayURL *url.URL, client *http.Client, options ...Clie
 	}
 
 	return c
-}
-
-func (s *Client) WithFunctionTokenSource(tokenSource TokenSource) *Client {
-	s.FunctionTokenSource = tokenSource
-
-	return s
 }
 
 // GetNamespaces get openfaas namespaces
