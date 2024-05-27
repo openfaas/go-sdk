@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -37,10 +38,6 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 	}
 
 	if auth && c.FunctionTokenSource != nil {
-		tokenURL := fmt.Sprintf("%s/oauth/token", c.GatewayURL.String())
-		scope := []string{"function"}
-		audience := []string{fmt.Sprintf("%s:%s", namespace, name)}
-
 		idToken, err := c.FunctionTokenSource.Token()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get function access token: %w", err)
@@ -48,18 +45,37 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 
 		// Consider caching the token in memory as long as the token is valid
 		// to prevent having to do a token exchange each time the function is invoked.
-		functionToken, err := ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
+		cacheKey := getFunctionTokenCacheKey(idToken, fmt.Sprintf("%s.%s", name, namespace))
+		functionToken, ok := c.fnTokenCache.Get(cacheKey)
+		if !ok {
+			tokenURL := fmt.Sprintf("%s/oauth/token", c.GatewayURL.String())
+			scope := []string{"function"}
+			audience := []string{fmt.Sprintf("%s:%s", namespace, name)}
 
-		var authError *OAuthError
-		if errors.As(err, &authError) {
-			return nil, fmt.Errorf("failed to get function access token: %s", authError.Description)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to get function access token: %w", err)
+			functionToken, err = ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
+
+			var authError *OAuthError
+			if errors.As(err, &authError) {
+				return nil, fmt.Errorf("failed to get function access token: %s", authError.Description)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to get function access token: %w", err)
+			}
+
+			c.fnTokenCache.Set(cacheKey, functionToken)
 		}
 
 		req.Header.Add("Authorization", "Bearer "+functionToken.IDToken)
 	}
 
 	return c.do(req)
+}
+
+func getFunctionTokenCacheKey(idToken string, serviceName string) string {
+	hash := sha256.New()
+	hash.Write([]byte(idToken))
+	hash.Write([]byte(serviceName))
+
+	sum := hash.Sum(nil)
+	return fmt.Sprintf("%x", sum)
 }
