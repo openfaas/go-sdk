@@ -1,17 +1,14 @@
 package sdk
 
 import (
-	"context"
 	"crypto/sha256"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 )
 
 const DefaultNamespace = "openfaas-fn"
 
-func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, method string, header http.Header, query url.Values, body io.Reader, async bool, auth bool) (*http.Response, error) {
+func (c *Client) InvokeFunction(name, namespace string, async bool, auth bool, req *http.Request) (*http.Response, error) {
 	fnEndpoint := "/function"
 	if async {
 		fnEndpoint = "/async-function"
@@ -21,20 +18,9 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 		namespace = DefaultNamespace
 	}
 
-	u, _ := url.Parse(c.GatewayURL.String())
-	u.Path = fmt.Sprintf("%s/%s.%s", fnEndpoint, name, namespace)
-	u.RawQuery = query.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	for key, values := range header {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
+	req.URL.Scheme = c.GatewayURL.Scheme
+	req.URL.Host = c.GatewayURL.Host
+	req.URL.Path = fmt.Sprintf("%s/%s.%s", fnEndpoint, name, namespace)
 
 	if auth && c.FunctionTokenSource != nil {
 		idToken, err := c.FunctionTokenSource.Token()
