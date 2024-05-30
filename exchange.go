@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -40,6 +41,15 @@ func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*T
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	if os.Getenv("FAAS_DEBUG") == "1" {
+		dump, err := dumpRequest(req)
+		if err != nil {
+			return nil, err
+		}
+
+		fmt.Println(dump)
+	}
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
