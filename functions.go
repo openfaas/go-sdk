@@ -3,7 +3,6 @@ package sdk
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,29 +42,37 @@ func (c *Client) InvokeFunction(ctx context.Context, name, namespace string, met
 			return nil, fmt.Errorf("failed to get function access token: %w", err)
 		}
 
-		// Function access tokens are cached in memory as long as the token is valid
-		// to prevent having to do a token exchange each time the function is invoked.
-		cacheKey := getFunctionTokenCacheKey(idToken, fmt.Sprintf("%s.%s", name, namespace))
-		functionToken, ok := c.fnTokenCache.Get(cacheKey)
-		if !ok {
-			tokenURL := fmt.Sprintf("%s/oauth/token", c.GatewayURL.String())
-			scope := []string{"function"}
-			audience := []string{fmt.Sprintf("%s:%s", namespace, name)}
+		tokenURL := fmt.Sprintf("%s/oauth/token", c.GatewayURL.String())
+		scope := []string{"function"}
+		audience := []string{fmt.Sprintf("%s:%s", namespace, name)}
 
-			functionToken, err = ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
+		var bearer string
+		if c.fnTokenCache != nil {
+			// Function access tokens are cached as long as the token is valid
+			// to prevent having to do a token exchange each time the function is invoked.
+			cacheKey := getFunctionTokenCacheKey(idToken, fmt.Sprintf("%s.%s", name, namespace))
 
-			var authError *OAuthError
-			if errors.As(err, &authError) {
-				return nil, fmt.Errorf("failed to get function access token: %s", authError.Description)
+			token, ok := c.fnTokenCache.Get(cacheKey)
+			if !ok {
+				token, err = ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
+				if err != nil {
+					return nil, fmt.Errorf("failed to get function access token: %w", err)
+				}
+
+				c.fnTokenCache.Set(cacheKey, token)
 			}
+
+			bearer = token.IDToken
+		} else {
+			token, err := ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
 			if err != nil {
 				return nil, fmt.Errorf("failed to get function access token: %w", err)
 			}
 
-			c.fnTokenCache.Set(cacheKey, functionToken)
+			bearer = token.IDToken
 		}
 
-		req.Header.Add("Authorization", "Bearer "+functionToken.IDToken)
+		req.Header.Add("Authorization", "Bearer "+bearer)
 	}
 
 	return c.do(req)

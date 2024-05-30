@@ -2,26 +2,31 @@ package sdk
 
 import "sync"
 
-type TokenCache struct {
+type TokenCache interface {
+	Get(key string) (*Token, bool)
+	Set(key string, token *Token)
+}
+
+type MemoryTokenCache struct {
 	tokens map[string]*Token
 
 	lock sync.RWMutex
 }
 
-func NewTokenCache() *TokenCache {
-	return &TokenCache{
+func NewMemoryTokenCache() *MemoryTokenCache {
+	return &MemoryTokenCache{
 		tokens: map[string]*Token{},
 	}
 }
 
-func (c *TokenCache) Set(key string, token *Token) {
+func (c *MemoryTokenCache) Set(key string, token *Token) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	c.tokens[key] = token
 }
 
-func (c *TokenCache) Get(key string) (*Token, bool) {
+func (c *MemoryTokenCache) Get(key string) (*Token, bool) {
 	c.lock.RLock()
 	token, ok := c.tokens[key]
 	c.lock.RUnlock()
