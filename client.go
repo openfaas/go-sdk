@@ -35,7 +35,7 @@ type Client struct {
 	client *http.Client
 
 	// OpenFaaS function access token cache for invoking functions.
-	fnTokenCache *TokenCache
+	fnTokenCache TokenCache
 }
 
 // Wrap http request Do function to support debug capabilities
@@ -74,6 +74,14 @@ func WithAuthentication(auth ClientAuth) ClientOption {
 	}
 }
 
+// WithFunctionTokenCache configures the token cache used by the client to cache access
+// tokens for function invocations.
+func WithFunctionTokenCache(cache TokenCache) ClientOption {
+	return func(c *Client) {
+		c.fnTokenCache = cache
+	}
+}
+
 // NewClient creates a Client for managing OpenFaaS and invoking functions
 func NewClient(gatewayURL *url.URL, auth ClientAuth, client *http.Client) *Client {
 	return NewClientWithOpts(gatewayURL, client, WithAuthentication(auth))
@@ -85,8 +93,7 @@ func NewClientWithOpts(gatewayURL *url.URL, client *http.Client, options ...Clie
 	c := &Client{
 		GatewayURL: gatewayURL,
 
-		client:       client,
-		fnTokenCache: NewTokenCache(),
+		client: client,
 	}
 
 	for _, option := range options {

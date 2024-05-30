@@ -7,7 +7,7 @@ import (
 )
 
 func Test_TokenCache(t *testing.T) {
-	cache := NewTokenCache()
+	cache := NewMemoryTokenCache()
 
 	t.Run("Cache hit for token", func(t *testing.T) {
 		token := &Token{
