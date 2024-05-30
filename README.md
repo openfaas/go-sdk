@@ -146,16 +146,19 @@ Please refer [examples](https://github.com/openfaas/go-sdk/tree/master/examples)
 ## Invoke functions
 
 ```go
-header := http.Header{}
-header.Set("Content-Type", "text/plain")
-
 body := strings.NewReader("OpenFaaS")
+req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, "/", body)
+if err != nil {
+	panic(err)
+}
+
+req.Header.Set("Content-Type", "text/plain")
 
 async := false
 authenticate := false
 
 // Make a POST request to a figlet function in the openfaas-fn namespace
-res, err := client.InvokeFunction(context.Background(), "figlet", "openfaas-fn", http.MethodPost, header, nil, body, async, authenticate)
+res, err := client.InvokeFunction(context.Background(), "figlet", "openfaas-fn", async, authenticate, req)
 if err != nil {
 	log.Printf("Failed to invoke function: %s", err)
 	return
