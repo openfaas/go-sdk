@@ -41,39 +41,12 @@ type Client struct {
 // Wrap http request Do function to support debug capabilities
 func (s *Client) do(req *http.Request) (*http.Response, error) {
 	if os.Getenv("FAAS_DEBUG") == "1" {
-
-		fmt.Printf("%s %s\n", req.Method, req.URL.String())
-		for k, v := range req.Header {
-			if k == "Authorization" {
-				auth := "[REDACTED]"
-				if len(v) == 0 {
-					auth = "[NOT_SET]"
-				} else {
-					l, _, ok := strings.Cut(v[0], " ")
-					if ok && (l == "Basic" || l == "Bearer") {
-						auth = l + " REDACTED"
-					}
-				}
-				fmt.Printf("%s: %s\n", k, auth)
-
-			} else {
-				fmt.Printf("%s: %s\n", k, v)
-			}
+		dump, err := dumpRequest(req)
+		if err != nil {
+			return nil, err
 		}
 
-		if req.Body != nil {
-			r := io.NopCloser(req.Body)
-			buf := new(strings.Builder)
-			_, err := io.Copy(buf, r)
-			if err != nil {
-				return nil, err
-			}
-			bodyDebug := buf.String()
-			if len(bodyDebug) > 0 {
-				fmt.Printf("%s\n", bodyDebug)
-			}
-			req.Body = io.NopCloser(strings.NewReader(buf.String()))
-		}
+		fmt.Println(dump)
 	}
 
 	return s.client.Do(req)
@@ -984,4 +957,44 @@ func (s *Client) GetLogs(ctx context.Context, functionName, namespace string, fo
 		}
 	}
 	return logStream, nil
+}
+
+func dumpRequest(req *http.Request) (string, error) {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("%s %s\n", req.Method, req.URL.String()))
+	for k, v := range req.Header {
+		if k == "Authorization" {
+			auth := "[REDACTED]"
+			if len(v) == 0 {
+				auth = "[NOT_SET]"
+			} else {
+				l, _, ok := strings.Cut(v[0], " ")
+				if ok && (l == "Basic" || l == "Bearer") {
+					auth = l + " [REDACTED]"
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s: %s\n", k, auth))
+
+		} else {
+			sb.WriteString(fmt.Sprintf("%s: %s\n", k, v))
+		}
+	}
+
+	if req.Body != nil {
+		r := io.NopCloser(req.Body)
+		buf := new(strings.Builder)
+		_, err := io.Copy(buf, r)
+		if err != nil {
+			return "", err
+		}
+		bodyDebug := buf.String()
+		if len(bodyDebug) > 0 {
+			sb.WriteString(fmt.Sprintf("%s\n", bodyDebug))
+
+		}
+		req.Body = io.NopCloser(strings.NewReader(buf.String()))
+	}
+
+	return sb.String(), nil
 }
