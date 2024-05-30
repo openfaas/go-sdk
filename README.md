@@ -193,6 +193,21 @@ ts := sdk.NewClientCredentialsTokenSource(clientID, clientSecret, tokenURL, scop
 client := sdk.NewClientWithOpts(gatewayURL, http.DefaultClient, sdk.WithFunctionTokenSource(ts))
 ```
 
+Optionally a `TokenCache` can be configured to cache function access tokens and prevent the client from having to do a token exchange each time a function is invoked.
+
+```go
+fnTokenCache := sdk.NewMemoryTokenCache()
+// Start garbage collection to remove expired tokens from the cache.
+go fnTokenCache.StartGC(context.Background(), time.Second*10)
+
+client := sdk.NewClientWithOpts(
+    gatewayUrl,
+    httpClient,
+    sdk.WithAuthentication(auth),
+    sdk.WithFunctionTokenCache(fnTokenCache),
+)
+```
+
 ## License
 
 License: MIT
