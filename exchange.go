@@ -14,7 +14,9 @@ import (
 // using the token exchange grant type.
 // tokenURL should be the OpenFaaS token endpoint within the internal OIDC service
 func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*Token, error) {
-	c := &ExchangeConfig{}
+	c := &ExchangeConfig{
+		Client: http.DefaultClient,
+	}
 
 	for _, option := range options {
 		option(c)
@@ -51,7 +53,7 @@ func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*T
 		fmt.Println(dump)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +93,7 @@ func ExchangeIDToken(tokenURL, rawIDToken string, options ...ExchangeOption) (*T
 type ExchangeConfig struct {
 	Audience []string
 	Scope    []string
+	Client   *http.Client
 }
 
 // ExchangeOption is used to implement functional-style options that modify the
@@ -110,5 +113,13 @@ func WithAudience(audience []string) ExchangeOption {
 func WithScope(scope []string) ExchangeOption {
 	return func(c *ExchangeConfig) {
 		c.Scope = scope
+	}
+}
+
+// WithHttpClient is an option to configure the http client
+// used to make the token exchange request.
+func WithHttpClient(client *http.Client) ExchangeOption {
+	return func(c *ExchangeConfig) {
+		c.Client = client
 	}
 }
