@@ -199,9 +199,12 @@ client := sdk.NewClientWithOpts(gatewayURL, http.DefaultClient, sdk.WithFunction
 Optionally a `TokenCache` can be configured to cache function access tokens and prevent the client from having to do a token exchange each time a function is invoked.
 
 ```go
+ctx, cancel := context.WithCancel(context.Background())
+defer cancel()
+
 fnTokenCache := sdk.NewMemoryTokenCache()
 // Start garbage collection to remove expired tokens from the cache.
-go fnTokenCache.StartGC(context.Background(), time.Second*10)
+go fnTokenCache.StartGC(ctx, time.Second*10)
 
 client := sdk.NewClientWithOpts(
     gatewayUrl,
