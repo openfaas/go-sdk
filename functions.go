@@ -1,7 +1,6 @@
 package sdk
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"net/http"
 )
@@ -36,8 +35,7 @@ func (c *Client) InvokeFunction(name, namespace string, async bool, auth bool, r
 		if c.fnTokenCache != nil {
 			// Function access tokens are cached as long as the token is valid
 			// to prevent having to do a token exchange each time the function is invoked.
-			cacheKey := getFunctionTokenCacheKey(idToken, fmt.Sprintf("%s.%s", name, namespace))
-
+			cacheKey := fmt.Sprintf("%s.%s", name, namespace)
 			token, ok := c.fnTokenCache.Get(cacheKey)
 			if !ok {
 				token, err = ExchangeIDToken(tokenURL, idToken, WithScope(scope), WithAudience(audience))
@@ -62,18 +60,4 @@ func (c *Client) InvokeFunction(name, namespace string, async bool, auth bool, r
 	}
 
 	return c.do(req)
-}
-
-// getFunctionTokenCacheKey computes a cache key for caching a function access token based
-// on the original id token that is exchanged for the function access token and the function
-// name e.g. figlet.openfaas-fn.
-// The original token is included in the hash to avoid cache hits for a function when the
-// source token changes.
-func getFunctionTokenCacheKey(idToken string, serviceName string) string {
-	hash := sha256.New()
-	hash.Write([]byte(idToken))
-	hash.Write([]byte(serviceName))
-
-	sum := hash.Sum(nil)
-	return fmt.Sprintf("%x", sum)
 }
