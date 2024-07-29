@@ -1,3 +1,5 @@
+github.com/alexellis/hmac/v2 v2.0.0 h1:/sH/UJxDXPpJorUeg2DudeKSeUrWPF32Yamw2TiDoOQ=
+github.com/alexellis/hmac/v2 v2.0.0/go.mod h1:O7hZZgTfh5fp5+vAamzodZPlbw+aQK+nnrrJNHsEvL0=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/openfaas/faas-provider v0.25.4 h1:Cly/M8/Q+OOn8qFxxeaZGyC5B2x4f+RSU28hej+1WcM=
