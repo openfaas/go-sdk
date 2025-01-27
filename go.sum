@@ -2,7 +2,7 @@ github.com/alexellis/hmac/v2 v2.0.0 h1:/sH/UJxDXPpJorUeg2DudeKSeUrWPF32Yamw2TiDo
 github.com/alexellis/hmac/v2 v2.0.0/go.mod h1:O7hZZgTfh5fp5+vAamzodZPlbw+aQK+nnrrJNHsEvL0=
 github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
-github.com/openfaas/faas-provider v0.25.4 h1:Cly/M8/Q+OOn8qFxxeaZGyC5B2x4f+RSU28hej+1WcM=
-github.com/openfaas/faas-provider v0.25.4/go.mod h1:t6RSPCvNfiqYEzf/CtdIj+0OItdyK6IzrOca1EOLNSg=
-go.uber.org/goleak v1.2.1 h1:NBol2c7O1ZokfZ0LEU9K6Whx/KnwvepVetCUhtKja4A=
-go.uber.org/goleak v1.2.1/go.mod h1:qlT2yGI9QafXHhZZLxlSuNsMw3FFLxBr+tBRlmO1xH4=
+github.com/openfaas/faas-provider v0.25.5 h1:qW2izX1otKfbOhArgf1GK9JjTqwBRL4BWioiJJVYH58=
+github.com/openfaas/faas-provider v0.25.5/go.mod h1:rMXbj+AYVpn82UoHIOgWHiDeV118t0bSxyoC9d00jpc=
+go.uber.org/goleak v1.3.0 h1:2K3zAYmnTNqV73imy9J1T3WC+gmCePx2hEGkimedGto=
+go.uber.org/goleak v1.3.0/go.mod h1:CoHD4mav9JJNrW/WLlf7HGZPjdw8EucARQHekz1X6bE=
