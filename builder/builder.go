@@ -2,12 +2,14 @@ package builder
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +22,7 @@ import (
 
 const BuilderConfigFileName = "com.openfaas.docker.config"
 
+// BuildConfig represents the configuration for a build operation.
 type BuildConfig struct {
 	// Image reference.
 	Image string `json:"image"`
@@ -31,10 +34,19 @@ type BuildConfig struct {
 	Platforms []string `json:"platforms,omitempty"`
 }
 
+// BuildResult represents the result of a build operation.
 type BuildResult struct {
-	Log    []string `json:"log"`
-	Image  string   `json:"image"`
-	Status string   `json:"status"`
+	// Log contains the build log.
+	Log []string `json:"log"`
+
+	// Image is the image reference of the built function.
+	Image string `json:"image"`
+
+	// Status is the status of the build.
+	Status string `json:"status"`
+
+	// Error is the error message if the build failed.
+	Error string `json:"error,omitempty"`
 }
 
 type FunctionBuilder struct {
@@ -72,18 +84,16 @@ func NewFunctionBuilder(url *url.URL, client *http.Client, options ...BuilderOpt
 	return b
 }
 
-// Build invokes the function builder API with the provided tar archive containing the build config and context
-// to build and push a function image.
-func (b *FunctionBuilder) Build(tarPath string) (BuildResult, error) {
+func (b *FunctionBuilder) build(tarPath string, stream bool) (*http.Response, error) {
 	tarFile, err := os.Open(tarPath)
 	if err != nil {
-		return BuildResult{}, err
+		return nil, err
 	}
 	defer tarFile.Close()
 
 	tarFileBytes, err := io.ReadAll(tarFile)
 	if err != nil {
-		return BuildResult{}, err
+		return nil, err
 	}
 
 	u := b.URL.JoinPath("/build")
@@ -91,16 +101,30 @@ func (b *FunctionBuilder) Build(tarPath string) (BuildResult, error) {
 	digest := hmac.Sign(tarFileBytes, []byte(b.hmacSecret), sha256.New)
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(tarFileBytes))
 	if err != nil {
-		return BuildResult{}, err
+		return nil, err
 	}
 
 	req.Header.Set("X-Build-Signature", "sha256="+hex.EncodeToString(digest))
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("User-Agent", "openfaas-go-sdk")
 
-	res, err := b.client.Do(req)
+	if stream {
+		req.Header.Set("Accept", "application/x-ndjson")
+	}
+
+	return b.client.Do(req)
+}
+
+// Build invokes the function builder API with the provided tar archive containing the build config and context
+// to build and push a function image.
+func (b *FunctionBuilder) Build(tarPath string) (BuildResult, error) {
+	res, err := b.build(tarPath, false)
 	if err != nil {
 		return BuildResult{}, err
+	}
+
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
+		return BuildResult{}, fmt.Errorf("failed to build function, builder responded with status code %d", res.StatusCode)
 	}
 
 	result := BuildResult{}
@@ -116,11 +140,65 @@ func (b *FunctionBuilder) Build(tarPath string) (BuildResult, error) {
 		}
 	}
 
-	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
-		return result, fmt.Errorf("failed to build function, builder responded with status code %d, build status: %s", res.StatusCode, result.Status)
+	return result, nil
+}
+
+// BuildWithStream invokes the function builder API with the provided tar archive containing the build config and context
+// to build and push a function image.
+//
+// The function returns a sequence of build results. The sequence is closed when the build is complete.
+func (b *FunctionBuilder) BuildWithStream(tarPath string) (*BuildResultStream, error) {
+	res, err := b.build(tarPath, true)
+	if err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusAccepted {
+		return nil, fmt.Errorf("failed to build function, builder responded with status code %d", res.StatusCode)
+	}
+
+	return &BuildResultStream{r: res.Body}, nil
+}
+
+// BuildResultStream represents a stream of build results.
+// The Results method can be used to iterate over the build results.
+type BuildResultStream struct {
+	r io.ReadCloser // The reader provided by the client.
+}
+
+// Results returns an iterator over build results.
+// It returns a single-use iterator
+func (b *BuildResultStream) Results() iter.Seq2[BuildResult, error] {
+	return func(yield func(BuildResult, error) bool) {
+		defer b.r.Close()
+
+		scanner := bufio.NewScanner(b.r)
+
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			var result BuildResult
+			if err := json.Unmarshal(line, &result); err != nil {
+				if ok := yield(BuildResult{}, err); !ok {
+					return
+				}
+			}
+			if ok := yield(result, nil); !ok {
+				return
+			}
+
+			if err := scanner.Err(); err != nil {
+				if ok := yield(BuildResult{}, err); !ok {
+					return
+				}
+			}
+		}
+	}
+}
+
+// Close closes the build stream preventing further iteration.
+// The stream is automatically closed when you iterate through all results or when the iteration terminates
+func (b *BuildResultStream) Close() error {
+	return b.r.Close()
 }
 
 // MakeTar create a tar archive that contains the build config and build context.
