@@ -306,7 +306,7 @@ for event, err := range stream.Results() {
 		}
 	}
 
-	if event.Status == "success" || event.Status == "failed" {
+	if event.Status == builder.BuildSuccess || event.Status == builder.BuildFailed {
 		fmt.Printf("Status: %s\n", event.Status)
 		fmt.Printf("Image: %s\n", event.Image)
 
