@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -974,8 +975,16 @@ func (s *Client) GetLogs(ctx context.Context, functionName, namespace string, fo
 func dumpRequest(req *http.Request) (string, error) {
 	var sb strings.Builder
 
+	// Get all header keys and sort them
+	keys := make([]string, 0, len(req.Header))
+	for k := range req.Header {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	sb.WriteString(fmt.Sprintf("%s %s\n", req.Method, req.URL.String()))
-	for k, v := range req.Header {
+	for _, k := range keys {
+		v := req.Header[k]
 		if k == "Authorization" {
 			auth := "[REDACTED]"
 			if len(v) == 0 {
