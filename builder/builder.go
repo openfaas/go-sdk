@@ -32,6 +32,9 @@ type BuildConfig struct {
 
 	// Platforms for multi-arch builds.
 	Platforms []string `json:"platforms,omitempty"`
+
+	// SkipPush is a flag to skip skip pushing the image to the registry.
+	SkipPush bool `json:"skipPush,omitempty"`
 }
 
 // BuildResult represents the result of a build operation.
