@@ -22,6 +22,12 @@ import (
 
 const BuilderConfigFileName = "com.openfaas.docker.config"
 
+const (
+	BuildInProgress = "in_progress"
+	BuildSuccess    = "success"
+	BuildFailed     = "failed"
+)
+
 // BuildConfig represents the configuration for a build operation.
 type BuildConfig struct {
 	// Image reference.
