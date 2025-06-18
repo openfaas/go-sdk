@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/alexellis/hmac/v2"
+	"github.com/openfaas/go-sdk/internal/httpclient"
 )
 
 const BuilderConfigFileName = "com.openfaas.docker.config"
@@ -80,6 +81,8 @@ func WithHmacAuth(secret string) BuilderOption {
 
 // NewFunctionBuilder create a new builder for building OpenFaaS functions using the Function Builder API.
 func NewFunctionBuilder(url *url.URL, client *http.Client, options ...BuilderOption) *FunctionBuilder {
+	client = httpclient.WithFaasTransport(client)
+
 	b := &FunctionBuilder{
 		URL: url,
 
