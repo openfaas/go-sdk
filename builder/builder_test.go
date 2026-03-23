@@ -1,11 +1,20 @@
 package builder
 
 import (
+	"archive/tar"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
+	hmac "github.com/alexellis/hmac/v2"
 	"github.com/google/go-cmp/cmp"
+	"github.com/openfaas/go-sdk/seal"
 )
 
 // readCloser wraps an io.ReadCloser and tracks when it's closed
@@ -131,4 +140,121 @@ func Test_BuildResultStream_ReaderClosed(t *testing.T) {
 			t.Error("Expected reader to be closed")
 		}
 	})
+}
+
+func TestBuildWithSecrets(t *testing.T) {
+	pub, priv, err := seal.GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("seal.GenerateKeyPair: %v", err)
+	}
+
+	buildTar := createTestTar(t)
+
+	tmpFile, err := os.CreateTemp(t.TempDir(), "build-*.tar")
+	if err != nil {
+		t.Fatalf("os.CreateTemp returned error: %v", err)
+	}
+	if _, err := tmpFile.Write(buildTar); err != nil {
+		t.Fatalf("tmpFile.Write returned error: %v", err)
+	}
+	tmpFile.Close()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll returned error: %v", err)
+		}
+
+		// Verify HMAC
+		wantDigest := hmac.Sign(body, []byte("payload-secret"), sha256.New)
+		gotDigest := r.Header.Get("X-Build-Signature")
+		if gotDigest != "sha256="+hex.EncodeToString(wantDigest) {
+			t.Fatalf("unexpected signature: %s", gotDigest)
+		}
+
+		// Body should be a tar, not multipart
+		if ct := r.Header.Get("Content-Type"); ct != "application/octet-stream" {
+			t.Fatalf("unexpected content-type: %s", ct)
+		}
+
+		// Extract sealed secrets from tar
+		tr := tar.NewReader(bytes.NewReader(body))
+		var sealedData []byte
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				t.Fatalf("tar.Next returned error: %v", err)
+			}
+			if hdr.Name == BuildSecretsFileName {
+				sealedData, err = io.ReadAll(tr)
+				if err != nil {
+					t.Fatalf("io.ReadAll sealed secrets: %v", err)
+				}
+			}
+		}
+
+		if sealedData == nil {
+			t.Fatal("sealed secrets file not found in tar")
+		}
+
+		// Unseal and verify
+		secrets, err := seal.Unseal(priv, sealedData)
+		if err != nil {
+			t.Fatalf("seal.Unseal returned error: %v", err)
+		}
+
+		if got := string(secrets["pip_token"]); got != "s3cr3t" {
+			t.Fatalf("want pip_token to be %q, got %q", "s3cr3t", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"status":"success","image":"ttl.sh/test:latest"}`)
+	}))
+	defer server.Close()
+
+	serverURL, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatalf("url.Parse returned error: %v", err)
+	}
+
+	builder := NewFunctionBuilder(serverURL, http.DefaultClient,
+		WithHmacAuth("payload-secret"),
+		WithBuildSecretsKey("builder-key-1", pub))
+
+	result, err := builder.BuildWithSecrets(tmpFile.Name(), map[string]string{
+		"pip_token": "s3cr3t",
+	})
+	if err != nil {
+		t.Fatalf("BuildWithSecrets returned error: %v", err)
+	}
+
+	if result.Status != BuildSuccess {
+		t.Fatalf("want status %q, got %q", BuildSuccess, result.Status)
+	}
+}
+
+// createTestTar creates a minimal valid tar for testing.
+func createTestTar(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	data := []byte(`{"image":"test:latest"}`)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: BuilderConfigFileName,
+		Mode: 0600,
+		Size: int64(len(data)),
+	}); err != nil {
+		t.Fatalf("tar.WriteHeader: %v", err)
+	}
+	if _, err := tw.Write(data); err != nil {
+		t.Fatalf("tar.Write: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("tar.Close: %v", err)
+	}
+	return buf.Bytes()
 }
