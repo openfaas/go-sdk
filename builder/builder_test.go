@@ -222,7 +222,7 @@ func TestBuildWithSecrets(t *testing.T) {
 
 	builder := NewFunctionBuilder(serverURL, http.DefaultClient,
 		WithHmacAuth("payload-secret"),
-		WithBuildSecretsKey("builder-key-1", pub))
+		WithBuildSecretsKey(pub))
 
 	result, err := builder.BuildWithSecrets(tmpFile.Name(), map[string]string{
 		"pip_token": "s3cr3t",

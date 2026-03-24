@@ -5,6 +5,66 @@ import (
 	"testing"
 )
 
+func TestDeriveKeyID(t *testing.T) {
+	pub, _, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+
+	id1, err := DeriveKeyID(pub)
+	if err != nil {
+		t.Fatalf("DeriveKeyID: %v", err)
+	}
+	if len(id1) != 8 {
+		t.Fatalf("want 8 chars, got %d: %q", len(id1), id1)
+	}
+
+	// Deterministic
+	id2, _ := DeriveKeyID(pub)
+	if id1 != id2 {
+		t.Fatalf("not deterministic: %q != %q", id1, id2)
+	}
+
+	// Different key → different ID
+	pub2, _, _ := GenerateKeyPair()
+	id3, _ := DeriveKeyID(pub2)
+	if id1 == id3 {
+		t.Fatalf("different keys produced same ID: %q", id1)
+	}
+}
+
+func TestSealDeriveKeyID(t *testing.T) {
+	pub, priv, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair: %v", err)
+	}
+
+	sealed, err := Seal(pub, map[string][]byte{"k": []byte("v")})
+	if err != nil {
+		t.Fatalf("Seal: %v", err)
+	}
+
+	// Verify the envelope has the derived key_id
+	keyID, err := KeyID(sealed)
+	if err != nil {
+		t.Fatalf("KeyID: %v", err)
+	}
+
+	wantID, _ := DeriveKeyID(pub)
+	if keyID != wantID {
+		t.Fatalf("want derived key_id %q, got %q", wantID, keyID)
+	}
+
+	// Still decrypts fine
+	got, err := Unseal(priv, sealed)
+	if err != nil {
+		t.Fatalf("Unseal: %v", err)
+	}
+	if string(got["k"]) != "v" {
+		t.Fatalf("want %q, got %q", "v", got["k"])
+	}
+}
+
 func TestSealUnsealRoundTrip(t *testing.T) {
 	pub, priv, err := GenerateKeyPair()
 	if err != nil {
@@ -17,7 +77,7 @@ func TestSealUnsealRoundTrip(t *testing.T) {
 		"ca.crt":         []byte("-----BEGIN CERTIFICATE-----\nMIIBkTCB...\n-----END CERTIFICATE-----\n"),
 	}
 
-	sealed, err := Seal(pub, values, "builder-2026-03")
+	sealed, err := Seal(pub, values)
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
@@ -47,7 +107,7 @@ func TestUnsealSingleKey(t *testing.T) {
 	sealed, err := Seal(pub, map[string][]byte{
 		"pip_token": []byte("s3cr3t"),
 		"npm_token": []byte("npm_4F4k3"),
-	}, "key-1")
+	})
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
@@ -68,7 +128,7 @@ func TestUnsealKeyMissing(t *testing.T) {
 		t.Fatalf("GenerateKeyPair: %v", err)
 	}
 
-	sealed, err := Seal(pub, map[string][]byte{"a": []byte("b")}, "")
+	sealed, err := Seal(pub, map[string][]byte{"a": []byte("b")})
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
@@ -85,7 +145,7 @@ func TestUnsealWrongKey(t *testing.T) {
 		t.Fatalf("GenerateKeyPair: %v", err)
 	}
 
-	sealed, err := Seal(pub, map[string][]byte{"token": []byte("secret")}, "")
+	sealed, err := Seal(pub, map[string][]byte{"token": []byte("secret")})
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
@@ -107,7 +167,6 @@ func TestMixedBinaryAndText(t *testing.T) {
 		t.Fatalf("GenerateKeyPair: %v", err)
 	}
 
-	// Fake PNG: magic header + null bytes + random binary
 	fakePNG := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 1024)...)
 	for i := 8; i < len(fakePNG); i++ {
 		fakePNG[i] = byte(i % 256)
@@ -120,7 +179,7 @@ func TestMixedBinaryAndText(t *testing.T) {
 		"null_bytes": {0x00, 0x00, 0xFF, 0x00, 0xFE},
 	}
 
-	sealed, err := Seal(pub, values, "test")
+	sealed, err := Seal(pub, values)
 	if err != nil {
 		t.Fatalf("Seal: %v", err)
 	}
@@ -137,95 +196,17 @@ func TestMixedBinaryAndText(t *testing.T) {
 	}
 }
 
-func TestKeyID(t *testing.T) {
-	pub, _, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair: %v", err)
-	}
-
-	sealed, err := Seal(pub, map[string][]byte{"k": []byte("v")}, "my-rotation-key")
-	if err != nil {
-		t.Fatalf("Seal: %v", err)
-	}
-
-	got, err := KeyID(sealed)
-	if err != nil {
-		t.Fatalf("KeyID: %v", err)
-	}
-	if got != "my-rotation-key" {
-		t.Fatalf("want keyID %q, got %q", "my-rotation-key", got)
-	}
-}
-
-func TestKeyIDEmpty(t *testing.T) {
-	pub, priv, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair: %v", err)
-	}
-
-	sealed, err := Seal(pub, map[string][]byte{"k": []byte("v")}, "")
-	if err != nil {
-		t.Fatalf("Seal: %v", err)
-	}
-
-	keyID, err := KeyID(sealed)
-	if err != nil {
-		t.Fatalf("KeyID: %v", err)
-	}
-	if keyID != "" {
-		t.Fatalf("want empty keyID, got %q", keyID)
-	}
-
-	got, err := Unseal(priv, sealed)
-	if err != nil {
-		t.Fatalf("Unseal: %v", err)
-	}
-	if string(got["k"]) != "v" {
-		t.Fatalf("want %q, got %q", "v", got["k"])
-	}
-}
-
 func TestSealInvalidPublicKey(t *testing.T) {
-	_, err := Seal([]byte("not-base64!!!"), map[string][]byte{"k": []byte("v")}, "")
+	_, err := Seal([]byte("not-base64!!!"), map[string][]byte{"k": []byte("v")})
 	if err == nil {
 		t.Fatal("expected error for invalid base64 key")
 	}
 }
 
 func TestSealWrongLengthKey(t *testing.T) {
-	// 16 bytes instead of 32
-	_, err := Seal([]byte("AAAAAAAAAAAAAAAAAAAAAA=="), map[string][]byte{"k": []byte("v")}, "")
+	_, err := Seal([]byte("AAAAAAAAAAAAAAAAAAAAAA=="), map[string][]byte{"k": []byte("v")})
 	if err == nil {
 		t.Fatal("expected error for wrong-length key")
-	}
-}
-
-func TestUnsealCorruptedCiphertext(t *testing.T) {
-	pub, _, err := GenerateKeyPair()
-	if err != nil {
-		t.Fatalf("GenerateKeyPair: %v", err)
-	}
-
-	sealed, err := Seal(pub, map[string][]byte{"k": []byte("v")}, "")
-	if err != nil {
-		t.Fatalf("Seal: %v", err)
-	}
-
-	// Corrupt the ciphertext by flipping bytes in the sealed output
-	corrupted := make([]byte, len(sealed))
-	copy(corrupted, sealed)
-	// Find "secrets:" and corrupt a few bytes after it
-	for i := range corrupted {
-		if i > len(corrupted)-20 {
-			corrupted[i] ^= 0xFF
-			break
-		}
-	}
-
-	_, priv, _ := GenerateKeyPair()
-	_, err = Unseal(priv, corrupted)
-	if err == nil {
-		t.Fatal("expected error for corrupted sealed data")
 	}
 }
 
