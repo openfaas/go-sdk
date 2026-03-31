@@ -207,9 +207,16 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name:         "client forbidden",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name:         "unknown error",
@@ -218,11 +225,7 @@ func TestSdk_DeployFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"unexpected status code: %d, message: %q",
-				http.StatusInternalServerError,
-				"unknown error\n",
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -240,7 +243,7 @@ func TestSdk_DeployFunction(t *testing.T) {
 				Namespace: nsName,
 			})
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -272,7 +275,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("function %s not found", funcName),
+			err: ErrNotFound,
 		},
 		{
 			name:         "client not authorized",
@@ -281,9 +284,16 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name:         "client forbidden",
+			functionName: funcName,
+			namespace:    nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name:         "unknown error",
@@ -292,11 +302,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"server returned unexpected status code %d, message: %q",
-				http.StatusInternalServerError,
-				string("unknown error\n"),
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -313,7 +319,7 @@ func TestSdk_DeleteFunction(t *testing.T) {
 				test.namespace,
 			)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -334,7 +340,7 @@ func TestSdk_GetNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("namespace %s not found", nsName),
+			err: ErrNotFound,
 		},
 		{
 			name:      "client not authorized",
@@ -342,9 +348,15 @@ func TestSdk_GetNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name:      "client forbidden",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name:      "unknown error",
@@ -352,11 +364,7 @@ func TestSdk_GetNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"unexpected status code: %d, message: %q",
-				http.StatusInternalServerError,
-				string("unknown error\n"),
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -369,7 +377,7 @@ func TestSdk_GetNamespace(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			_, err := client.GetNamespace(context.Background(), test.namespace)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -412,9 +420,17 @@ func TestSdk_CreateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name: "client forbidden",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name: "unknown error",
@@ -424,11 +440,7 @@ func TestSdk_CreateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"unexpected status code: %d, message: %q",
-				http.StatusInternalServerError,
-				string("unknown error\n"),
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -441,7 +453,7 @@ func TestSdk_CreateNamespace(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			_, err := client.CreateNamespace(context.Background(), test.req)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -486,7 +498,7 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("namespace %s not found", nsName),
+			err: ErrNotFound,
 		},
 		{
 			name: "client not authorized",
@@ -496,9 +508,17 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name: "client forbidden",
+			req: types.FunctionNamespace{
+				Name: nsName,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name: "unknown error",
@@ -508,11 +528,7 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"unexpected status code: %d, message: %q",
-				http.StatusInternalServerError,
-				string("unknown error\n"),
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -525,7 +541,7 @@ func TestSdk_UpdateNamespace(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			_, err := client.UpdateNamespace(context.Background(), test.req)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -553,7 +569,7 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("namespace %s not found", nsName),
+			err: ErrNotFound,
 		},
 		{
 			name:      "client not authorized",
@@ -561,9 +577,15 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf(
-				"unauthorized action, please setup authentication for this server",
-			),
+			err: ErrUnauthorized,
+		},
+		{
+			name:      "client forbidden",
+			namespace: nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name:      "unknown error",
@@ -571,11 +593,7 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf(
-				"unexpected status code: %d, message: %q",
-				http.StatusInternalServerError,
-				string("unknown error\n"),
-			),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -588,7 +606,7 @@ func TestSdk_DeleteNamespace(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			err := client.DeleteNamespace(context.Background(), test.namespace)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -626,7 +644,19 @@ func TestSdk_CreateSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: ErrUnauthorized,
+		},
+		{
+			name: "client forbidden",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name: "unknown error",
@@ -638,7 +668,7 @@ func TestSdk_CreateSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -651,7 +681,7 @@ func TestSdk_CreateSecret(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			_, err := client.CreateSecret(context.Background(), test.req)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -689,7 +719,19 @@ func TestSdk_UpdateSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: ErrUnauthorized,
+		},
+		{
+			name: "client forbidden",
+			req: types.Secret{
+				Name:      secretName,
+				Namespace: nsName,
+				Value:     secretValue,
+			},
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name: "unknown error",
@@ -701,7 +743,7 @@ func TestSdk_UpdateSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, string("unknown error"), http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("unexpected status code: %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -714,7 +756,7 @@ func TestSdk_UpdateSecret(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			_, err := client.UpdateSecret(context.Background(), test.req)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
@@ -746,7 +788,7 @@ func TestSdk_DeleteSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusNotFound)
 			},
-			err: fmt.Errorf("secret %s not found", secretName),
+			err: ErrNotFound,
 		},
 		{
 			name:       "client not authorized",
@@ -755,7 +797,16 @@ func TestSdk_DeleteSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				rw.WriteHeader(http.StatusUnauthorized)
 			},
-			err: fmt.Errorf("unauthorized action, please setup authentication for this server"),
+			err: ErrUnauthorized,
+		},
+		{
+			name:       "client forbidden",
+			secretName: secretName,
+			namespace:  nsName,
+			handler: func(rw http.ResponseWriter, req *http.Request) {
+				rw.WriteHeader(http.StatusForbidden)
+			},
+			err: ErrForbidden,
 		},
 		{
 			name:       "unknown error",
@@ -764,7 +815,7 @@ func TestSdk_DeleteSecret(t *testing.T) {
 			handler: func(rw http.ResponseWriter, req *http.Request) {
 				http.Error(rw, "unknown error", http.StatusInternalServerError)
 			},
-			err: fmt.Errorf("server returned unexpected status code %d, message: %q", http.StatusInternalServerError, string("unknown error\n")),
+			err: ErrUnexpectedStatus,
 		},
 	}
 
@@ -777,7 +828,7 @@ func TestSdk_DeleteSecret(t *testing.T) {
 			client := NewClient(sU, nil, http.DefaultClient)
 			err := client.DeleteSecret(context.Background(), test.secretName, test.namespace)
 
-			if !errors.Is(err, test.err) && err.Error() != test.err.Error() {
+			if !errors.Is(err, test.err) {
 				t.Fatalf("wanted %s, but got: %s", test.err, err)
 			}
 		})
